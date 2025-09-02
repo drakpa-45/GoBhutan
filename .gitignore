@@ -1,0 +1,16 @@
+/.metadata/
+/*/*/target/
+/image/
+/deployment/
+/.git/
+/.metadata/
+/.recommenders/
+/.sonarlint/
+/.vs/
+README.md
+/*/*/.settings/
+/*/*/.gitignore
+/*/*/.classpath
+/*/*/.project
+/docker_image/*/*.*.war
+.idea/
