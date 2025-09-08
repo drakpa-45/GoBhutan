@@ -17,20 +17,21 @@ import lombok.RequiredArgsConstructor;
 public class SecurityConfig {
 
 	private final JwtAuthConverter jwtAuthConverter;
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(csrf -> csrf.disable())
-            .authorizeHttpRequests(authz -> authz
-                .anyRequest().authenticated()
-            )
-            .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthConverter)) // Configure as needed
-            )
-            .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            );
+	@Bean
+	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+	    http
+	        .csrf(csrf -> csrf.disable())
+	        .authorizeHttpRequests(authz -> authz
+	            .requestMatchers("/auth/**").permitAll()      // allow signup endpoints
+	            .anyRequest().authenticated()
+	        )
+	        .oauth2ResourceServer(oauth2 -> oauth2
+	            .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthConverter))
+	        )
+	        .sessionManagement(session -> session
+	            .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+	        );
 
-        return http.build();
-    }
+	    return http.build();
+	}
 }
