@@ -2,6 +2,11 @@ server:
   port: 8085
 
 spring:
+  mvc:
+    view:
+      prefix: /WEB-INF/views/
+      suffix: .jsp
+
   datasource:
     url: jdbc:mysql://127.0.0.1:3306/hotel_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: root
@@ -12,19 +17,19 @@ spring:
     hibernate:
       ddl-auto: update
     properties:
-      hibernate.dialect: org.hibernate.dialect.MySQLDialect   # ✅ new dialect
+      hibernate.dialect: org.hibernate.dialect.MySQLDialect   # ? new dialect
     show-sql: true
 
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8084/realms/drakpa   # ✅ Keycloak realm issuer
+          issuer-uri: http://localhost:8084/realms/drakpa   # ? Keycloak realm issuer
 
 jwt:
   auth:
     converter:
-      resource-id: hotel-admin              # ✅ must match Keycloak client-id that has roles
+      resource-id: drakpa-rest-api              # ? must match Keycloak client-id that has roles
       principle-attribute: preferred_username
 
 keycloak:

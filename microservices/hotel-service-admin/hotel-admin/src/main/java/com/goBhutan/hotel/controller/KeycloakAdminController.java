@@ -1,21 +1,27 @@
 package com.goBhutan.hotel.controller;
 
 import org.springframework.http.*;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.beans.factory.annotation.Value;
 
+import com.goBhutan.hotel.dto.AuthResponse;
 import com.goBhutan.hotel.service.AdminTokenService;
 import com.goBhutan.hotel.service.AppUserService;
 
 import java.util.*;
 
-@RestController
+@Controller
 @RequestMapping("/auth")
 public class KeycloakAdminController {
-    private final AdminTokenService tokenService;
-    private final RestTemplate rest = new RestTemplate();
-    private final AppUserService appUserService;
+    private AdminTokenService tokenService;
+    private RestTemplate rest = new RestTemplate();
+    private AppUserService appUserService;
 
     @Value("${keycloak.server-url}")
     private String keycloakServerUrl;
@@ -23,12 +29,33 @@ public class KeycloakAdminController {
     @Value("${keycloak.realm}")
     private String realm;
 
+    @Value("${keycloak.admin.client-id}")
+    private String clientId;
+
+    @Value("${keycloak.admin.client-secret}")
+    private String clientSecret;
+
     public KeycloakAdminController(AdminTokenService tokenService, AppUserService appUserService) {
         this.tokenService = tokenService;
         this.appUserService = appUserService;
     }
 
     record SignupRequest(String username, String email, String password) {}
+
+    @RequestMapping(value = "/login",method = RequestMethod.GET)
+    public String loginPage() {
+        return "login";
+    }
+
+    @RequestMapping(value = "/signup",method = RequestMethod.GET)
+    public String signupPage() {
+        return "signup";
+    }
+
+    @RequestMapping(value = "/dashboard",method = RequestMethod.GET)
+    public String dashboard() {
+        return "dashboard";
+    }
 
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@RequestBody SignupRequest req){
@@ -75,9 +102,54 @@ public class KeycloakAdminController {
     // Endpoint to be called by your APIs after token validation to ensure the AppUser exists
     @GetMapping("/sync-me")
     public ResponseEntity<?> syncMe(@RequestHeader("Authorization") String authHeader){
-        // the request will be authenticated by spring resource server; we can extract principal
-        // but simpler: request will be authenticated and you can get Jwt from SecurityContext in controller
-        // For brevity, controller method can extract Jwt directly (example below is simplified)
         return ResponseEntity.ok(Map.of("ok", true));
     }
+    
+    @PostMapping("/signin")
+    public ResponseEntity<AuthResponse> signin(@RequestBody SignupRequest req) {
+        String url = String.format("%s/realms/%s/protocol/openid-connect/token", keycloakServerUrl, realm);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("grant_type", "password");
+        body.add("client_id", clientId);
+        body.add("client_secret", clientSecret);
+        body.add("username", req.username());
+        body.add("password", req.password());
+
+        HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(body, headers);
+
+        try {
+            ResponseEntity<Map> response = rest.postForEntity(url, entity, Map.class);
+            Map<String, Object> tokenResponse = response.getBody();
+
+            if (tokenResponse != null && tokenResponse.containsKey("access_token")) {
+                AuthResponse authResponse = new AuthResponse(
+                    "Sign in successful",
+                    (String) tokenResponse.get("access_token"),
+                    (String) tokenResponse.get("refresh_token")
+                );
+                return ResponseEntity.ok(authResponse);
+
+            } else {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                     .body(new AuthResponse("Invalid username or password", null, null));
+            }
+
+        } catch (HttpClientErrorException.Unauthorized e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                 .body(new AuthResponse("Invalid username or password", null, null));
+
+        } catch (HttpClientErrorException.Forbidden e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                 .body(new AuthResponse("User is forbidden to access", null, null));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                 .body(new AuthResponse("Login failed due to server error: " + e.getMessage(), null, null));
+        }
+    }
+
 }

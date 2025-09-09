@@ -32,7 +32,7 @@ public class DemoController {
     }
 
     @GetMapping("/hello-jwt")
-    @PreAuthorize("hasRole('client_user')")
+    @PreAuthorize("hasRole('client_admin')")
     public String helloJwt(@AuthenticationPrincipal Jwt jwt) {
         String sub = jwt.getSubject();
         String username = jwt.getClaimAsString("preferred_username");

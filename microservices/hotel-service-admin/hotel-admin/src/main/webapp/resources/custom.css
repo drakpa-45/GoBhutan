@@ -1,0 +1,127 @@
+<!-- Custom CSS -->
+ .navbar-brand {
+     font-weight: bold;
+     color: #2c3e50 !important;
+ }
+
+.search-container {
+    position: relative;
+    max-width: 400px;
+}
+
+.stats-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    color: white;
+    transition: transform 0.3s ease;
+}
+
+.stats-card:hover {
+    transform: translateY(-5px);
+}
+
+.stats-card.booked {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.stats-card.pending {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.stats-card.checkin {
+    background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
+}
+
+.stats-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin: 0;
+}
+
+.stats-label {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+.dropdown-menu {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.navbar {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.main-content {
+    background-color: #f8f9fa;
+    min-height: calc(100vh - 76px);
+    padding: 2rem 0;
+}
+
+.welcome-section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.btn-auth {
+    border-radius: 25px;
+    padding: 8px 20px;
+    margin-left: 5px;
+}
+
+.user-avatar {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+     /* Additional CSS for submenu positioning */
+ .dropdown-submenu {
+     position: relative;
+ }
+
+.dropdown-submenu .dropdown-menu {
+    top: 0;
+    left: 100%;
+    margin-top: -1px;
+    display: none;
+}
+
+.dropdown-submenu-left .dropdown-menu {
+    right: 100%;
+    left: auto;
+}
+
+/* Animation for stats cards */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.stats-card {
+    animation: slideInUp 0.6s ease-out forwards;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .search-container {
+        margin-bottom: 1rem;
+    }
+
+    .stats-number {
+        font-size: 2rem;
+    }
+
+    .welcome-section h2 {
+        font-size: 1.5rem;
+    }
+}
