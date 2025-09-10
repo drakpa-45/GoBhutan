@@ -17,6 +17,28 @@
             <p class="login-box-msg">Create your admin account</p>
 
             <form id="signupForm" action="${pageContext.request.contextPath}/auth/signup" method="post">
+
+                <!-- First Name -->
+                <div class="input-group mb-3">
+                    <input type="text" name="firstName" class="form-control" placeholder="First Name" required>
+                    <div class="input-group-append">
+                        <div class="input-group-text">
+                            <span class="fas fa-id-badge"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Last Name -->
+                <div class="input-group mb-3">
+                    <input type="text" name="lastName" class="form-control" placeholder="Last Name" required>
+                    <div class="input-group-append">
+                        <div class="input-group-text">
+                            <span class="fas fa-id-badge"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Username -->
                 <div class="input-group mb-3">
                     <input type="text" name="username" class="form-control" placeholder="Username" required>
                     <div class="input-group-append">
@@ -26,6 +48,7 @@
                     </div>
                 </div>
 
+                <!-- Email -->
                 <div class="input-group mb-3">
                     <input type="email" name="email" class="form-control" placeholder="Email" required>
                     <div class="input-group-append">
@@ -35,7 +58,7 @@
                     </div>
                 </div>
 
-                <!-- Password field with eye toggle -->
+                <!-- Password -->
                 <div class="input-group mb-3">
                     <input type="password" id="password" name="password" class="form-control" placeholder="Password" required minlength="6">
                     <div class="input-group-append">
@@ -45,7 +68,7 @@
                     </div>
                 </div>
 
-                <!-- Confirm Password field with eye toggle -->
+                <!-- Confirm Password -->
                 <div class="input-group mb-1">
                     <input type="password" id="confirmPassword" class="form-control" placeholder="Confirm Password" required minlength="6">
                     <div class="input-group-append">

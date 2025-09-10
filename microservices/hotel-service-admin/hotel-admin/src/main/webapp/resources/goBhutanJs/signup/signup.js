@@ -3,13 +3,65 @@ const password = document.getElementById("password");
 const confirmPassword = document.getElementById("confirmPassword");
 const errorMsg = document.getElementById("passwordError");
 
+const contextPath = "${pageContext.request.contextPath}";
+
 // Validate on form submit
 signupForm.addEventListener("submit", function (e) {
+    e.preventDefault(); // prevent default form submit
+
+    // Check password match
     if (password.value !== confirmPassword.value) {
-        e.preventDefault();
         errorMsg.style.display = "block";
+        return;
     }
+
+    // Collect form data
+    const formData = {
+        firstName: signupForm.firstName.value,
+        lastName: signupForm.lastName.value,
+        username: signupForm.username.value,
+        email: signupForm.email.value,
+        password: password.value
+    };
+
+    // Send AJAX request to backend
+    fetch(`${signupForm.action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+    })
+        .then(async (res) => {
+            if (res.status === 201) {
+                alert("Signup successful! Please login.");
+                window.location.href = `${window.location.origin}/auth/login`;
+            } else {
+                const data = await res.text();
+                alert("Signup failed: " + data);
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Error connecting to server.");
+        });
 });
+function successMsg(msg, url) {
+    if (!url) {
+        swal({
+            title: "Success!",
+            text: msg,
+            icon: "success"
+        });
+    } else {
+        swal({
+            title: "Success!",
+            text: msg,
+            icon: "success"
+        }, function() {
+            window.location = url; // redirect after user clicks OK
+        });
+    }
+}
+
 
 // Real-time validation
 confirmPassword.addEventListener("input", function () {

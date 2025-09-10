@@ -19,3 +19,11 @@ body {
 .toggle-password {
     cursor: pointer;
 }
+
+.swal-overlay {
+    z-index: 2000 !important; /* higher than your form card */
+}
+
+.swal-modal {
+    z-index: 2001 !important;
+}

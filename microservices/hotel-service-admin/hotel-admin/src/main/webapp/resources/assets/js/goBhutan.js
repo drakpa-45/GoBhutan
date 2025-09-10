@@ -1,27 +1,17 @@
 /**
- * Created by nima yoezer on 25-Jan-17.
+ * Created by drakpa on 25-Jan-20.
  */
 
 //region *** Function for Global Object ***
 
-var dateFormat = 'dd-mm-yy';
-
-function getParameterByNameFromUrl(name, url) {
-    if (!url) url = window.location.href;
-    name = name.replace(/[\[\]]/g, "\\$&");
-    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#$"),
-        results = regex.exec(url);
-    if (!results) return null;
-    if (!results[2]) return '';
-    return decodeURIComponent(results[2].replace(/\+/g, " "));
-}
+let dateFormat = 'dd-mm-yy';
 
 function allowKeys(e) {
     //Allow: backspace, delete, tab, escape, enter
     if ($.inArray(e.keyCode, [46, 8, 9, 27, 13, 110]) !== -1 ||
-            //Allow: Ctr+A
+        //Allow: Ctr+A
         (e.keyCode == 65 && e.ctrlKey === true) ||
-            //Allow: home, end, left, right, down, up
+        //Allow: home, end, left, right, down, up
         (e.keyCode >= 35 && e.keyCode <= 40)) {
         return true;
     }
@@ -90,53 +80,13 @@ function populate(data) {
     );
 }
 
-function formatAsDate(date) {
-    if (date)
-        return $.datepicker.formatDate(dateFormat, new Date(date));
-    return '';
-}
-
-function parseAsDate(val) {
-    if (val) {
-        var dateRegex = /((3[01])|([012]\d)|[1-9])((1[012])|(0?[1-9]))?((19|20)?\d\d?)?/;
-        var dateMatch = val.match(dateRegex);
-        if (!dateMatch || !dateMatch[1]) {
-            return;
-        }
-        var day = dateMatch[1];
-        var date = new Date();
-        var month = date.getMonth();
-        var year = date.getFullYear();
-        if (dateMatch[4]) {
-            month = dateMatch[4];
-        }
-        if (dateMatch[7]) {
-            year = dateMatch[7];
-            year = parseInt(year);
-            if (dateMatch[7].length < 3) {
-                if (year > 70)
-                    year = 1900 + year;
-                else
-                    year = 2000 + year;
-            }
-        }
-        date = new Date(year, month - 1, day);
-        return date;
-
-    }
-}
-
-function isnull(str){
-    return str == null?'':str;
-}
-
 
 //region sweet alert
 
 function successMsg(msg, url) {
     if (!url) {
         swal({
-           title: "SUCCESS!",
+            title: "SUCCESS!",
             title: "Success!",
             text: msg,
             type: "success"
@@ -169,11 +119,6 @@ function warningMsg(msg) {
         button: "ok"
     });
 }
-
-function closemodel(modelId){
-    $('#'+modelId).modal('hide');
-}
-
 //endregion
 
 
@@ -181,8 +126,8 @@ function closemodel(modelId){
 
 //*********************************************************************************************************
 
-//region *** dofpsGlobal Object ***
-dofpsGlobal = (function () {
+//region *** goBhutanGlobal Object ***
+goBhutanGlobal = (function () {
     "use strict";
 
     function baseURL() {
@@ -337,7 +282,7 @@ dofpsGlobal = (function () {
     function switchToInvalidTab(targetControl) {
         if (!targetControl)
             targetControl = $('.error');
-        var errorContainedPane = targetControl.first().parents('.tab-pane'), tabPaneID = errorContainedPane.attr('id');
+        let errorContainedPane = targetControl.first().parents('.tab-pane'), tabPaneID = errorContainedPane.attr('id');
         errorContainedPane.addClass('active in');
         errorContainedPane.siblings().removeClass('active in');
         $('a[href$="#' + tabPaneID + '"]').parent('li').siblings().removeClass('active');
@@ -345,14 +290,14 @@ dofpsGlobal = (function () {
     }
 
     function convertAmountInWord(amount) {
-        var th = ['', 'Thousand', 'Million', 'Billion', 'Trillion'];
+        let th = ['', 'Thousand', 'Million', 'Billion', 'Trillion'];
 
-        var dg = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
-        var tn = ['Ten', 'Eleven', 'Twelve', 'Thriteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-        var tw = ['Twenty', 'Thirty', 'Fourty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+        let dg = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+        let tn = ['Ten', 'Eleven', 'Twelve', 'Thriteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+        let tw = ['Twenty', 'Thirty', 'Fourty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
         amount = amount.toString();
-        var x = amount.indexOf('.');
+        let x = amount.indexOf('.');
         amount = amount.replace(/[\. ]/g, '');
         if (amount != parseFloat(amount))
             return 'not a number';
@@ -360,10 +305,10 @@ dofpsGlobal = (function () {
         if (x == -1) x = amount.length;
         if (x > 15) return 'Too Big';
 
-        var n = amount.split('');
-        var str = '';
-        var sk = 0;
-        for (var i = 0; i < x; i++) {
+        let n = amount.split('');
+        let str = '';
+        let sk = 0;
+        for (let i = 0; i < x; i++) {
             if ((x - i) % 3 == 2) {
                 if (n[i] == '1') {
                     str += tn[Number(n[i + 1])] + ' ';
@@ -386,30 +331,18 @@ dofpsGlobal = (function () {
         }
 
         if (x != amount.length) {
-            var y = amount.length;
+            let y = amount.length;
             str += 'Point ';
-            for (var z = x; z < y; z++) str += dg[n[z]] + ' ';
+            for (let z = x; z < y; z++) str += dg[n[z]] + ' ';
         }
         return str.replace(/\s+/g, ' ');
-
-    }
-
-    function reset(){
-        $('body').on('click', '#btnReset', function (e) {
-            /*var form = $(this).closest('form');
-             form[0].reset();
-             form.find(':input').each(function(e){
-             $(this).removeClass('error') ;
-             });*/
-            window.location.reload(true);
-        });
 
     }
 
     function enterKeyAsTab(){
         $('form input').keydown(function(e){
             if(e.keyCode == 13){
-                var inputs = $(this).parents('form').eq(0).find(':input');
+                let inputs = $(this).parents('form').eq(0).find(':input');
                 if(inputs[inputs.index(this)+1] != null){
                     inputs[inputs.index(this)+1].focus();
                 }
@@ -423,17 +356,7 @@ dofpsGlobal = (function () {
     return {
         baseURL: baseURL,
         ajax: ajax,
-        loadDropDown: loadDropDown,
-        formIndexing: formIndexing,
-        formIndexingM: formIndexingM,
-        formIndexingN: formIndexingN,
-        formIndexingDiv: formIndexingDiv,
-        getSelectedOptionText: getSelectedOptionText,
-        handleCheckboxBeforeSave: handleCheckboxBeforeSave,
         switchToInvalidTab: switchToInvalidTab,
-        convertAmountInWord: convertAmountInWord,
-        baseReportLocation: baseReportLocation,
-        reset:reset,
         enterKeyAsTab:enterKeyAsTab
     };
 })();
@@ -445,7 +368,7 @@ dofpsGlobal = (function () {
 $(document).ready(
     function () {
         //Local variable for show errors on pop instead of tooltip
-        var submitted = false;
+        let submitted = false;
 
         //region *** jQuery custom validator ***
         $.validator.setDefaults(
@@ -455,13 +378,13 @@ $(document).ready(
                 showErrors: function (errorMap, errorList) {
                     $.each(
                         this.validElements(), function (index, element) {
-                            var $element = $(element);
+                            let $element = $(element);
                             $element.removeClass("error");
                         }
                     );
                     $.each(
                         errorList, function (index, error) {
-                            var $element = $(error.element);
+                            let $element = $(error.element);
                             $element.addClass("error");
                         }
                     );
@@ -472,7 +395,7 @@ $(document).ready(
                 },
                 invalidHandler: function (event, validator) {
                     submitted = true;
-                    dofpsGlobal.switchToInvalidTab();
+                    goBhutanGlobal.switchToInvalidTab();
                 }
             }
         );
@@ -484,8 +407,8 @@ $(document).ready(
                 if (allowKeys(e)) {
                     return true;
                 }
-                var regex = new RegExp("^[0-9]+$");
-                var str = String.fromCharCode(!e.charCode ? e.which : e.charCode);
+                let regex = new RegExp("^[0-9]+$");
+                let str = String.fromCharCode(!e.charCode ? e.which : e.charCode);
                 if (regex.test(str)) {
                     return true;
                 }
@@ -499,8 +422,8 @@ $(document).ready(
                 if (allowKeys(e)) {
                     return true;
                 }
-                var regex = new RegExp("^[a-zA-Z0-9]+$");
-                var str = String.fromCharCode(!e.charCode ? e.which : e.charCode);
+                let regex = new RegExp("^[a-zA-Z0-9]+$");
+                let str = String.fromCharCode(!e.charCode ? e.which : e.charCode);
                 if (regex.test(str)) {
                     return true;
                 }
@@ -512,7 +435,7 @@ $(document).ready(
 
 
         function isAmount(event, element) {
-            var charCode = (event.which) ? event.which : event.keyCode;
+            let charCode = (event.which) ? event.which : event.keyCode;
             if (
                 (charCode != 46 || $(element).val().indexOf('.') != -1) &&
                 (charCode != 9) &&
@@ -548,26 +471,6 @@ $(document).ready(
             }
         );
 
-        $('body').on(
-            'blur', '.percentage', function (e) {
-                var $this = $(this);
-                if ($this.val()) {
-                    var value = $this.val();
-
-                    var regex = new RegExp("^[0-9]{1,3}(\\.([0-9]{1,2})?)?$");
-                    if (!regex.test(value)) {
-                        errorMsg('Incorrect Format. Format is ###.##');
-                        $this.val('');
-                        return;
-                    }
-                }
-                if (value > 100) {
-                    errorMsg('Please insert interest rate between zero(0) and hundred(100)');
-                    $this.val('');
-                    return;
-                }
-            }
-        );
         //endregion *** Restriction Event ***
         $('body').on('change','input:file',function(){
             if(this.files[0].size > 1024*1024*2){ //if size more than 2MB, donot allow file selection
@@ -576,93 +479,7 @@ $(document).ready(
             }
         });
 
-
-        //region custom global methods
-        dofpsGlobal.reset();
-        dofpsGlobal.enterKeyAsTab();
         //endregion
-
-
-
-        /*  //region *** Validation Message Alert Configuration ***
-         alertify.dialog(
-         'errorAlert', function factory() {
-         return {
-         build: function () {
-         var errorHeader = '<span class="glyphicon glyphicon-exclamation-sign errorMsg gi-2x" ' +
-         'style="vertical-align:moddle;">' +
-         '</span> Application Error';
-         this.setHeader(errorHeader);
-         }
-         };
-         }, true, 'alert'
-         );
-
-         alertify.dialog(
-         'successAlert', function factory() {
-         return {
-         build: function () {
-         var successHeader = '<span class="glyphicon glyphicon-ok-sign successMsg gi-2x" ' +
-         'style="vertical-align:middle;">' +
-         '</span> Application Success';
-         this.setHeader(successHeader);
-         }
-         };
-         }, true, 'alert'
-         );
-
-         alertify.dialog(
-         'warningAlert', function factory() {
-         return {
-         build: function () {
-         var successHeader = '<span class="glyphicon glyphicon-warning-sign warningMsg gi-2x" ' +
-         'style="vertical-align:middle;">' +
-         '</span> Application Warning';
-         this.setHeader(successHeader);
-         }
-         };
-         }, true, 'alert'
-         );
-
-         alertify.dialog(
-         'infoAlert', function factory() {
-         return {
-         build: function () {
-         var successHeader = '<span class="glyphicon glyphicon-info-sign infoMsg gi-2x" ' +
-         'style="vertical-align:middle;">' +
-         '</span> Application Information';
-         this.setHeader(successHeader);
-         }
-         };
-         }, true, 'alert'
-         );
-
-         alertify.dialog(
-         'confirmAlert', function factory() {
-         return {
-         build: function () {
-         var confirmHeader = '<span class="glyphicon glyphicon-question-sign errorMsg gi-2x" ' +
-         'style="vertical-align:middle;">' +
-         '</span> Application Confirmation';
-         this.setHeader(confirmHeader);
-         }
-         };
-         }, true, 'confirm'
-         );
-
-         alertify.dialog(
-         'successCustomerAlert', function factory() {
-         return {
-         build: function () {
-         var successHeader = '<span class="glyphicon glyphicon-ok-sign successMsg gi-2x" ' +
-         'style="vertical-align:middle;">' +
-         '</span> Application Success';
-         this.setHeader(successHeader);
-         }
-         };
-         }, true, 'confirm'
-         );
-         //endregion *** Validation Message Alert Configuration ****/
 
         //region *** jQuery Custom Plugin ***
         $.fn.disableElements = function (status) {
@@ -702,81 +519,6 @@ $(document).ready(
                     "data": data,
                     "columns": column_def,
                     "editable": true
-                }
-            );
-        };
-
-        $.fn.ditEditableGrid = function (data, column_def) {
-            SimpleGridEditTable = $(this).dataTable(
-                {
-                    "data": data,
-                    "columns": column_def,
-                    "bStateSave": true
-                }
-            );
-
-            $(this).on(
-                'click', ' tbody td', function () {
-                    $(this).editable(
-                        function (sValue) {
-                            var aPos = SimpleGridEditTable.fnGetPosition(this);
-                            var aData = SimpleGridEditTable.fnGetData(aPos[0]);
-
-                            aData[aPos[1]] = sValue;
-
-                            return sValue;
-                        }, {"onblur": 'submit'}
-                    );
-                }
-            );
-
-            $(this).on(
-                'change', ' tbody td', function () {
-                    $(this).css({"color": "#ffb7b7"});
-                }
-            );
-        };
-
-        $.fn.addToGrid = function (form) {
-            var formElelmentValue = {};
-
-            $(form).serializeArray().map(
-                function (item) {
-                    formElelmentValue[item.name] = item.value;
-                }
-            );
-
-            var dtTable = $(this).dataTable();
-
-            dtTable.fnAddData(formElelmentValue);
-            $(form)[0].reset();
-
-            dtTable = dtTable.DataTable();
-
-            $(this + " tbody tr").unbind('click');
-            $(this + " tbody tr").bind(
-                'click', function () {
-                    dtTable.$('tr.selected').removeClass('selected');
-                    $(this).addClass('selected');
-                    populate(dtTable.row('.selected').data(), form);
-                }
-            );
-        };
-
-        $.fn.removeFromGrid = function (form, buttonSelector) {
-            var dtTable = $(this).DataTable();
-
-            dtTable.row('.selected').remove().draw(false);
-            $(form)[0].reset();
-        };
-
-        $.fn.showDialog = function (url) {
-            $.ajax(
-                {
-                    url: url,
-                    success: function (data) {
-                        $(this).html(data).dialog();
-                    }
                 }
             );
         };

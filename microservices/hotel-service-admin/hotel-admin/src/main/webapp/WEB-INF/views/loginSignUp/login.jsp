@@ -4,7 +4,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Hotel Admin Login</title>
-
     <jsp:include page="/resources/gobhutanCss.jsp"/>
     <link rel="stylesheet" href="<c:url value="../../../resources/goBhutanCss/login/login.css"/>"/>
 </head>
@@ -17,21 +16,18 @@
         <div class="card-body login-card-body">
             <p class="login-box-msg">Sign in to start your session</p>
 
-            <form action="${pageContext.request.contextPath}/auth/signin" method="post">
+            <!-- Notice: no "action" here, JS handles submission -->
+            <form id="loginForm" >
                 <div class="input-group mb-3">
                     <input type="text" name="username" class="form-control" placeholder="Username" required>
                     <div class="input-group-append">
-                        <div class="input-group-text">
-                            <span class="fas fa-user"></span>
-                        </div>
+                        <div class="input-group-text"><span class="fas fa-user"></span></div>
                     </div>
                 </div>
                 <div class="input-group mb-3">
                     <input type="password" name="password" class="form-control" placeholder="Password" required>
                     <div class="input-group-append">
-                        <div class="input-group-text">
-                            <span class="fas fa-lock"></span>
-                        </div>
+                        <div class="input-group-text"><span class="fas fa-lock"></span></div>
                     </div>
                 </div>
                 <div class="row mb-3">
@@ -44,7 +40,6 @@
                 </div>
             </form>
 
-            <!-- Sign up link -->
             <div class="extra-links">
                 <span>Don't have an account?</span>
                 <a href="${pageContext.request.contextPath}/auth/signup">Sign up</a>
