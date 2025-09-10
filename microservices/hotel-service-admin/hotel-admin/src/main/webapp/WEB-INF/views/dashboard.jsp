@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hotel Management Dashboard</title>
     <jsp:include page="../../resources/gobhutanCss.jsp"/>
-    <link rel="stylesheet" href="<c:url value="../../resources/custom.css"/>"/>
+    <link rel="stylesheet" href="<c:url value="../../resources/goBhutanCss/custom.css"/>"/>
 </head>
 <body>
 <!-- Navigation Bar -->
@@ -159,7 +159,7 @@
 
                 <!-- Sign In/Sign Up Buttons (for non-authenticated users) -->
                 <div class="d-none" id="authButtons">
-                    <a href="login.jsp" class="btn btn-outline-primary btn-auth">Sign In</a>
+                    <a href="loginSignUp/login.jsp" class="btn btn-outline-primary btn-auth">Sign In</a>
                     <a href="register.jsp" class="btn btn-primary btn-auth">Sign Up</a>
                 </div>
             </div>
@@ -396,6 +396,6 @@
     </div>
 </main>
 <jsp:include page="../../resources/gobhutanJs.jsp"/>
-<script type="text/javascript" src="<c:url value="../../resources/custom.js"/>"></script>
+<script type="text/javascript" src="<c:url value="../../resources/goBhutanJs/custom.js"/>"></script>
 </body>
 </html>

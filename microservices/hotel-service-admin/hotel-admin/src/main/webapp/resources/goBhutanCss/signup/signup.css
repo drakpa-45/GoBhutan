@@ -1,0 +1,21 @@
+/* signup-style.css */
+
+body {
+    background: url('../../images/signup-bg.png') no-repeat center center fixed;
+    background-size: cover;
+}
+
+.login-box, .card {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 10px;
+}
+
+.error-msg {
+    color: red;
+    font-size: 0.85rem;
+    display: none;
+}
+
+.toggle-password {
+    cursor: pointer;
+}
