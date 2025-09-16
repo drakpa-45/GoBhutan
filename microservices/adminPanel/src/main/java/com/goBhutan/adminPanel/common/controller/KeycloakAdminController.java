@@ -7,6 +7,8 @@ import com.goBhutan.adminPanel.common.service.AdminTokenService;
 import com.goBhutan.adminPanel.common.service.AppUserService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
@@ -108,14 +110,14 @@ public class KeycloakAdminController {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
-        Map<String, String> body = new HashMap<>();
-        body.put("grant_type", "password");
-        body.put("client_id", clientId);
-        body.put("client_secret", clientSecret);
-        body.put("username", req.getUsername());
-        body.put("password", req.getPassword());
+        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("grant_type", "password");
+        body.add("client_id", clientId);
+        body.add("client_secret", clientSecret);
+        body.add("username", req.getUsername());
+        body.add("password", req.getPassword());
 
-        HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
+        HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(body, headers);
 
         try {
             ResponseEntity<Map> response = rest.postForEntity(url, entity, Map.class);

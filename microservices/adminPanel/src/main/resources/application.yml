@@ -1,8 +1,9 @@
+# Server Configuration
 server:
   port: 8085
 
 spring:
-  datasource:
+  datasource: # Database Configuration
     url: jdbc:mysql://127.0.0.1:3306/goBhutan?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: root
     password: root
@@ -12,24 +13,24 @@ spring:
     hibernate:
       ddl-auto: update
     properties:
-      hibernate.dialect: org.hibernate.dialect.MySQLDialect   # ? new dialect
+      hibernate.dialect: org.hibernate.dialect.MySQLDialect   # Updated to MySQL8Dialect for modern MySQL
     show-sql: true
-
+  #Spring Security OAuth2 Resource Server (JWT)
   security:
     oauth2:
       resourceserver:
         jwt:
           issuer-uri: http://localhost:8084/realms/drakpa   # ? Keycloak realm issuer
-
+# JWT Role Converter
 jwt:
   auth:
     converter:
       resource-id: drakpa-rest-api              # ? must match Keycloak client-id that has roles
-      principle-attribute: preferred_username
-
+      principle-attribute: preferred_username   # JWT claim to use as principal username
+# Keycloak Admin Client (for backend management)
 keycloak:
-  serverUrl: http://localhost:8084
-  realm: drakpa
+  serverUrl: http://localhost:8084  # Keycloak server URL
+  realm: drakpa # Keycloak realm
   admin:
-    clientId: hotel-admin
+    clientId: hotel-admin # Admin client for backend operations
     clientSecret: Z4dfe4sWtldMUouRkcJj1bme3MqANpMl
