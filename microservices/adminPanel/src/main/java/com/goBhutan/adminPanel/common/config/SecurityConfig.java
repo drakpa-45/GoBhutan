@@ -23,6 +23,7 @@ public class SecurityConfig {
 				.csrf(csrf -> csrf.disable()) // REST API → CSRF not needed
 				.authorizeHttpRequests(authz -> authz
 						.requestMatchers("/auth/**").permitAll()   // signup & signin → public
+						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 						.anyRequest().authenticated()              // everything else → JWT required
 				)
 				.oauth2ResourceServer(oauth2 -> oauth2

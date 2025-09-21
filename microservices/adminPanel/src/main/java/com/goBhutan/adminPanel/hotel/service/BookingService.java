@@ -24,9 +24,12 @@ import jakarta.transaction.Transactional;
 @Transactional
 public class BookingService {
 
-    @Autowired private BookingRepository bookingRepo;
-    @Autowired private HotelRepository hotelRepo;
-    @Autowired private RoomRepository roomRepo;
+    @Autowired
+    private BookingRepository bookingRepo;
+    @Autowired
+    private HotelRepository hotelRepo;
+    @Autowired
+    private RoomRepository roomRepo;
 
     public List<Booking> getAllBookings() {
         return bookingRepo.findAll();

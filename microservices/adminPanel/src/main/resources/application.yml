@@ -20,17 +20,42 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8084/realms/drakpa   # ? Keycloak realm issuer
+          issuer-uri: http://localhost:8084/realms/bus-realm  # ? Keycloak realm issuer
 # JWT Role Converter
 jwt:
   auth:
     converter:
-      resource-id: drakpa-rest-api              # ? must match Keycloak client-id that has roles
+      resource-id: bus-admin-rest-api            # ? must match Keycloak client-id that has roles
       principle-attribute: preferred_username   # JWT claim to use as principal username
 # Keycloak Admin Client (for backend management)
 keycloak:
   serverUrl: http://localhost:8084  # Keycloak server URL
-  realm: drakpa # Keycloak realm
+  realm: bus-realm # Keycloak realm
   admin:
-    clientId: hotel-admin # Admin client for backend operations
-    clientSecret: Z4dfe4sWtldMUouRkcJj1bme3MqANpMl
+    clientId: bus-admin-client  # Admin client for backend operations
+    clientSecret: sZ1hobpP368yYd1qOB2wiCNrPNkSBI59
+
+
+
+
+# logging
+logging:
+  level:
+    root: INFO
+    com.goBhutan.adminPanel: DEBUG
+
+#Swagger
+springdoc:
+  swagger-ui:
+    path: /docs
+    display-request-duration: true
+    operations-sorter: method   # or "alpha"
+    tags-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  default-produces-media-type: application/json
+  default-consumes-media-type: application/json
+
+  group-configs:
+    - group: bus-admin
+      packages-to-scan: com.goBhutan.adminPanel.busAdmin.controller
