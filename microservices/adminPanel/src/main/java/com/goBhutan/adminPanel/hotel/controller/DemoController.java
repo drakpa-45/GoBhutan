@@ -20,7 +20,7 @@ public class DemoController {
     }
 
     @GetMapping("/hello")
-    @PreAuthorize("hasRole('client_user')")
+   // @PreAuthorize("hasRole('client_user')")
     public String hello() {
         return "Hello from Spring Boot and Keycloak";
     }

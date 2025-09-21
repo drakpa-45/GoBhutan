@@ -4,7 +4,7 @@ server:
 
 spring:
   datasource: # Database Configuration
-    url: jdbc:mysql://127.0.0.1:3306/goBhutan?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    url: jdbc:mysql://localhost:3306/goBhutan?useSSL=false&allowPublicKeyRetrieval=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: root
     password: root
     driver-class-name: com.mysql.cj.jdbc.Driver

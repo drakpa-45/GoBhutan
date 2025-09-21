@@ -12,11 +12,13 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@RequiredArgsConstructor
 public class SecurityConfig {
 
-	private JwtAuthConverter jwtAuthConverter;
+	private final JwtAuthConverter jwtAuthConverter;
 
+	public SecurityConfig(JwtAuthConverter jwtAuthConverter) {
+		this.jwtAuthConverter = jwtAuthConverter;
+	}
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		http
@@ -24,6 +26,7 @@ public class SecurityConfig {
 				.authorizeHttpRequests(authz -> authz
 						.requestMatchers("/auth/**").permitAll()   // signup & signin → public
 						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+						.requestMatchers("/**").permitAll()
 						.anyRequest().authenticated()              // everything else → JWT required
 				)
 				.oauth2ResourceServer(oauth2 -> oauth2
