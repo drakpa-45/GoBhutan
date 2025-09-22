@@ -57,7 +57,8 @@
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
-			<optional>true</optional>
+			<version>1.18.34</version> <!-- ✅ Always add version -->
+			<scope>provided</scope>    <!-- ✅ Not included in runtime JAR -->
 		</dependency>
 
 		<!-- Validation -->
@@ -96,6 +97,13 @@
 			<version>2.6.0</version>
 		</dependency>
 
+		<!--configuration for annotation processor-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-configuration-processor</artifactId>
+			<optional>true</optional>
+		</dependency>
+
 	</dependencies>
 
 	<build>
@@ -109,6 +117,7 @@
 						<path>
 							<groupId>org.projectlombok</groupId>
 							<artifactId>lombok</artifactId>
+							<version>1.18.34</version> <!-- ✅ Add version -->
 						</path>
 					</annotationProcessorPaths>
 				</configuration>
