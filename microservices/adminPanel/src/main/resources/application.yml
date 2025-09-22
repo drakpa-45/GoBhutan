@@ -73,3 +73,5 @@ springdoc:
       packages-to-scan: com.goBhutan.adminPanel.busAdmin.controller
     - group: hotel-admin
       packages-to-scan: com.goBhutan.adminPanel.hotel.controller
+    - group: common-endpoints
+      packages-to-scan: com.goBhutan.adminPanel.common.controller

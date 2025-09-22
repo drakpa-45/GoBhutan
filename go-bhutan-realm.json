@@ -1,0 +1,53 @@
+{
+  "realm": "Go-Bhutan",
+  "enabled": true,
+  "users": [
+    {
+      "username": "gobuthanadmin",
+      "email": "admin@gobuthan.bt",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["admin"],
+      "clientRoles": {
+        "hotel-admin-client": ["client_admin_hotel"],
+        "bus-admin-client": ["client_admin_bus"]
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "hotel-admin-client",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "QunAYZb7yPSV3hUi77cEvzQobDbHRbyO",
+      "redirectUris": ["*"],
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "protocol": "openid-connect",
+      "roles": [
+        { "name": "client_user_hotel" },
+        { "name": "client_admin_hotel" }
+      ]
+    },
+    {
+      "clientId": "bus-admin-client",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "YGVuF6q8Ce0QsDQWTSGe8J8I5489P1tE",
+      "redirectUris": ["*"],
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "protocol": "openid-connect",
+      "roles": [
+        { "name": "client_user_bus" },
+        { "name": "client_admin_bus" }
+      ]
+    }
+  ]
+}

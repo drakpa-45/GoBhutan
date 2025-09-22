@@ -11,7 +11,7 @@ import com.goBhutan.adminPanel.hotel.service.BookingService;
 
 import java.util.List;
 
-@Controller
+@RestController
 @RequestMapping("/bookings")
 public class BookingController {
 
