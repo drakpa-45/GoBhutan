@@ -27,6 +27,15 @@ public class AppUser {
 	@Column
 	private String email;
 
+	@Column(name = "first_name")
+	private String firstName;
+
+	@Column(name = "last_name")
+	private String lastName;
+
+	@Column
+	private String password; // plain text for now; consider hashing
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt = Instant.now();
 
@@ -36,6 +45,7 @@ public class AppUser {
 	@Column(name = "client")
 	private Set<String> clients = new HashSet<>();
 
+	// Getters and Setters
 	public String getId() { return id; }
 	public void setId(String id) { this.id = id; }
 
@@ -47,6 +57,15 @@ public class AppUser {
 
 	public String getEmail() { return email; }
 	public void setEmail(String email) { this.email = email; }
+
+	public String getFirstName() { return firstName; }
+	public void setFirstName(String firstName) { this.firstName = firstName; }
+
+	public String getLastName() { return lastName; }
+	public void setLastName(String lastName) { this.lastName = lastName; }
+
+	public String getPassword() { return password; }
+	public void setPassword(String password) { this.password = password; }
 
 	public Instant getCreatedAt() { return createdAt; }
 	public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
