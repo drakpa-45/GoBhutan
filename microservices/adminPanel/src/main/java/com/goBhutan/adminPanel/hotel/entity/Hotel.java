@@ -58,13 +58,7 @@ public class Hotel {
     
     @Column(name = "star_rating")
     private Integer starRating;
-    
-    @Column(name = "check_in_time")
-    private String checkInTime = "14:00";
-    
-    @Column(name = "check_out_time")
-    private String checkOutTime = "11:00";
-    
+
     @Column(name = "admin_user_id")
     private String adminUserId; // Keycloak user ID
     
@@ -77,15 +71,11 @@ public class Hotel {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt = LocalDateTime.now();
 
-    @OneToMany(mappedBy = "hotel", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "hotel", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Room> rooms;
-    
-    @ManyToMany
-    @JoinTable(
-        name = "hotel_amenities",
-        joinColumns = @JoinColumn(name = "hotel_id"),
-        inverseJoinColumns = @JoinColumn(name = "amenity_id")
-    )
+
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "hotel_id") // hotel_id in Amenity table
     private List<Amenity> amenities;
     
     // Constructors, getters, setters
@@ -127,13 +117,7 @@ public class Hotel {
     
     public Integer getStarRating() { return starRating; }
     public void setStarRating(Integer starRating) { this.starRating = starRating; }
-    
-    public String getCheckInTime() { return checkInTime; }
-    public void setCheckInTime(String checkInTime) { this.checkInTime = checkInTime; }
-    
-    public String getCheckOutTime() { return checkOutTime; }
-    public void setCheckOutTime(String checkOutTime) { this.checkOutTime = checkOutTime; }
-    
+
     public String getAdminUserId() { return adminUserId; }
     public void setAdminUserId(String adminUserId) { this.adminUserId = adminUserId; }
     

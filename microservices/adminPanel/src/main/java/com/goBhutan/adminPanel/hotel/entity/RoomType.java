@@ -16,7 +16,7 @@ public class RoomType {
     private Long id;
     
     @NotBlank(message = "Room type name is required")
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String name; // Single, Double, Suite, Deluxe, etc.
     
     @Column(columnDefinition = "TEXT")

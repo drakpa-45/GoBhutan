@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 @RestController
+@CrossOrigin(origins = "*", maxAge = 3600)
 @RequestMapping("/api/room-types")
 public class RoomTypeController {
 
@@ -16,13 +17,13 @@ public class RoomTypeController {
     private RoomTypeRepository repo;
 
     @GetMapping
-    @PreAuthorize("hasRole('client_admin')")
+   // @PreAuthorize("hasRole('client_admin')")
     public List<RoomType> getAllTypes() {
         return repo.findAll();
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('client_admin')")
+    //@PreAuthorize("hasRole('client_admin')")
     public RoomType create(@RequestBody @Valid RoomType type) {
         return repo.save(type);
     }

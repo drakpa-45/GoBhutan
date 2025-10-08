@@ -18,7 +18,7 @@ public class Amenity {
     private Long id;
     
     @NotBlank(message = "Amenity name is required")
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String name;
     
     @Column(columnDefinition = "TEXT")

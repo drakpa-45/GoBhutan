@@ -3,17 +3,9 @@ package com.goBhutan.adminPanel.hotel.entity;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 
 @Entity
 @Table(name = "tbl_ht_bookings")
@@ -32,16 +24,7 @@ public class Booking {
     @ManyToOne
     @JoinColumn(name = "room_id")
     private Room room;
-    
-    @Column(name = "customer_name")
-    private String customerName;
-    
-    @Column(name = "customer_email")
-    private String customerEmail;
-    
-    @Column(name = "customer_phone")
-    private String customerPhone;
-    
+
     @Column(name = "check_in_date")
     private LocalDate checkInDate;
     
@@ -59,7 +42,11 @@ public class Booking {
     
     @Column(name = "created_at")
     private LocalDateTime createdAt;
-    
+
+    @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Guest> guests;
+
+
     public enum BookingStatus {
         PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED
     }
@@ -78,16 +65,7 @@ public class Booking {
     
     public Room getRoom() { return room; }
     public void setRoom(Room room) { this.room = room; }
-    
-    public String getCustomerName() { return customerName; }
-    public void setCustomerName(String customerName) { this.customerName = customerName; }
-    
-    public String getCustomerEmail() { return customerEmail; }
-    public void setCustomerEmail(String customerEmail) { this.customerEmail = customerEmail; }
-    
-    public String getCustomerPhone() { return customerPhone; }
-    public void setCustomerPhone(String customerPhone) { this.customerPhone = customerPhone; }
-    
+
     public LocalDate getCheckInDate() { return checkInDate; }
     public void setCheckInDate(LocalDate checkInDate) { this.checkInDate = checkInDate; }
     
@@ -105,4 +83,12 @@ public class Booking {
     
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public List<Guest> getGuests() {
+        return guests;
+    }
+
+    public void setGuests(List<Guest> guests) {
+        this.guests = guests;
+    }
 }
