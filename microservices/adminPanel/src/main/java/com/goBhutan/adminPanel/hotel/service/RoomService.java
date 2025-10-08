@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.goBhutan.adminPanel.hotel.dto.RoomResponseDTO;
 import com.goBhutan.adminPanel.hotel.entity.Hotel;
 import com.goBhutan.adminPanel.hotel.entity.RoomType;
 import com.goBhutan.adminPanel.hotel.repository.HotelRepository;
@@ -26,8 +27,12 @@ public class RoomService {
     @Autowired private HotelRepository hotelRepo;
     @Autowired private RoomTypeRepository roomTypeRepo;
 
-    public List<Room> getAllRooms() {
-        return roomRepo.findAll();
+    public List<RoomResponseDTO> getAllRooms(long hotelId) {
+        List<Room> rooms = roomRepo.findByHotelId(hotelId);
+
+        return rooms.stream()
+                .map(RoomResponseDTO::new)  // ✅ pass the whole Room entity
+                .toList();
     }
 
     public Room getRoomById(Long id) {

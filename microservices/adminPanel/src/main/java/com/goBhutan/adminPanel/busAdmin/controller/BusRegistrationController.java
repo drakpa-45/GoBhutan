@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
+@CrossOrigin(origins = "*", maxAge = 3600)
 @RequestMapping("/api/buses")
 public class BusRegistrationController {
     private static final Logger logger = LoggerFactory.getLogger(BusRegistrationController.class);
