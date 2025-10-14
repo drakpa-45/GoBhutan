@@ -37,6 +37,18 @@ app:
         admin:
           clientId: hotel-admin-client
           clientSecret: QunAYZb7yPSV3hUi77cEvzQobDbHRbyO
+    theater:
+      jwt: # JWT Role Converter
+        auth:
+          converter:
+            resource-id: theater-admin-rest-api    # ? must match Keycloak client-id that has roles
+            principle-attribute: preferred_username   # JWT claim to use as principal username
+      keycloak: # Keycloak Admin Client (for backend management)
+        serverUrl: http://localhost:8084  # Keycloak server URL
+        realm: Go-Bhutan # Keycloak realm
+        admin:
+          clientId: theater-admin-client
+          clientSecret: d7zknakWJgDEOIb5gvQNQ64cS97G14cT
     bus:
       jwt:
         auth:
@@ -75,3 +87,5 @@ springdoc:
       packages-to-scan: com.goBhutan.adminPanel.hotel.controller
     - group: common-endpoints
       packages-to-scan: com.goBhutan.adminPanel.common.controller
+    - group: theater-admin
+      packages-to-scan: com.goBhutan.adminPanel.theater.controller
