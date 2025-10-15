@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -31,7 +33,10 @@ public class BusRegistrationController {
     @PostMapping
     public ResponseEntity<ApiResponse<Bus>> registerBus(@Valid @RequestBody BusRegistrationRequest busRegistrationRequest, HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject(); // Keycloak "sub" claim
+            //hotel.setAdminUserId(userId);
+
             Bus bus = busService.registerBus(busRegistrationRequest, adminUserId);
             return ResponseEntity.ok(ApiResponse.success("Bus registered successfully", bus));
         } catch (Exception e) {
