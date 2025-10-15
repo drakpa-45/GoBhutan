@@ -1,31 +1,46 @@
 package com.goBhutan.adminPanel.hotel.service;
 
-import java.util.List;
-
+import com.goBhutan.adminPanel.hotel.entity.RoomTypeMaster;
+import com.goBhutan.adminPanel.hotel.repository.RoomTypeMasterRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
-import com.goBhutan.adminPanel.hotel.entity.RoomType;
-import com.goBhutan.adminPanel.hotel.repository.RoomTypeRepository;
-
-import jakarta.transaction.Transactional;
+import java.util.List;
 
 @Service
 @Transactional
 public class RoomTypeService {
-    
+
     @Autowired
-    private RoomTypeRepository roomTypeRepository;
-    
-    public List<RoomType> getAllRoomTypes() {
-        return roomTypeRepository.findAll();
+    private RoomTypeMasterRepository roomTypeMasterRepository;
+
+    // ✅ Fetch all room types
+    public List<RoomTypeMaster> getAllRoomTypes() {
+        return roomTypeMasterRepository.findAll();
     }
-    
-    public RoomType saveRoomType(RoomType roomType) {
-        return roomTypeRepository.save(roomType);
+
+    // ✅ Fetch room types for a specific hotel
+    public List<RoomTypeMaster> getAllByAdminUserId() {
+        // 🔹 Extract logged-in user ID from Keycloak token
+        Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String adminUserId = jwt.getSubject();
+        return roomTypeMasterRepository.findByAdminUserId(adminUserId);
     }
-    
+
+    // ✅ Save or update a room type for a specific hotel
+    public RoomTypeMaster saveRoomType(RoomTypeMaster roomType) {
+        // 🔹 Extract logged-in user ID from Keycloak token
+        Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        roomType.setAdminUserId(jwt.getSubject());
+
+        return roomTypeMasterRepository.save(roomType);
+    }
+
+    // ✅ Delete a room type by ID
     public void deleteRoomType(Long id) {
-        roomTypeRepository.deleteById(id);
+        roomTypeMasterRepository.deleteById(id);
     }
 }
