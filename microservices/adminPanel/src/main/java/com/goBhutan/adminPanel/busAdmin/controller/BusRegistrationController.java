@@ -34,7 +34,7 @@ public class BusRegistrationController {
     public ResponseEntity<ApiResponse<Bus>> registerBus(@Valid @RequestBody BusRegistrationRequest busRegistrationRequest, HttpServletRequest request) {
         try {
             Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            String adminUserId = principal.getSubject(); // Keycloak "sub" claim
+            String adminUserId = principal.getSubject();
             //hotel.setAdminUserId(userId);
 
             Bus bus = busService.registerBus(busRegistrationRequest, adminUserId);
@@ -47,7 +47,9 @@ public class BusRegistrationController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<Bus>>> getBuses(HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
+
             List<Bus> buses = busService.getBusesByOwner(adminUserId);
             return ResponseEntity.ok(ApiResponse.success(buses));
         } catch (Exception e) {
@@ -58,7 +60,9 @@ public class BusRegistrationController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<Bus>> getBus(@PathVariable Long id, HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
+
             Bus bus = busService.getBusById(id, adminUserId);
             return ResponseEntity.ok(ApiResponse.success(bus));
         } catch (Exception e) {
@@ -71,7 +75,8 @@ public class BusRegistrationController {
                                                       @Valid @RequestBody BusRegistrationRequest busRegistrationRequest,
                                                       HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
             Bus bus = busService.updateBus(id, busRegistrationRequest, adminUserId);
             return ResponseEntity.ok(ApiResponse.success("Bus updated successfully", bus));
         } catch (Exception e) {
@@ -82,7 +87,8 @@ public class BusRegistrationController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<String>> deleteBus(@PathVariable Long id, HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
             busService.deleteBus(id, adminUserId);
             return ResponseEntity.ok(ApiResponse.success("Bus deleted successfully", "Bus deleted"));
         } catch (Exception e) {
