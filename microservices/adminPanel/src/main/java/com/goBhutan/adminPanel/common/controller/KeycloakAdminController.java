@@ -370,6 +370,48 @@ public class KeycloakAdminController {
         }
     }
 
+    // 🔹 Signout (invalidate refresh & access tokens)
+    @PostMapping("/signout")
+    public ResponseEntity<ApiResponse<String>> signout(@RequestBody SignoutRequestDTO req) {
+        try {
+            // Fetch user clients
+            List<String> userClients = appUserService.getClientsForUser(req.getUsername());
+            if (userClients == null || userClients.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("User is not registered with any client"));
+            }
+
+            // Use the first registered client (or adjust to use a specific one)
+            String clientForAuth = userClients.get(0);
+            KeycloakConfig config = getKeycloakConfig(clientForAuth);
+
+            String url = String.format("%s/realms/%s/protocol/openid-connect/logout",
+                    config.getServerUrl(), config.getRealm());
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("client_id", config.getAdmin().getClientId());
+            body.add("client_secret", config.getAdmin().getClientSecret());
+            body.add("refresh_token", req.getRefreshToken());
+
+            HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(body, headers);
+
+            rest.postForEntity(url, entity, String.class);
+
+            return ResponseEntity.ok(ApiResponse.success("Sign out successful", "User logged out successfully"));
+
+        } catch (HttpClientErrorException e) {
+            return ResponseEntity.status(e.getStatusCode())
+                    .body(ApiResponse.error("Sign out failed: " + e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Sign out failed: " + e.getMessage()));
+        }
+    }
+
+
     // 🔹 Helper method to fetch Keycloak config
     private KeycloakConfig getKeycloakConfig(String clientKey) {
         var clientConfig = clientProperties.getClient(clientKey);
