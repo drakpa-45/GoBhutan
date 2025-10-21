@@ -421,4 +421,3 @@ public class KeycloakAdminController {
         return clientConfig.getKeycloak();
     }
 }
-
