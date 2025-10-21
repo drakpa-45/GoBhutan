@@ -13,7 +13,7 @@ public class Guest {
     private Long id;
 
     @NotBlank(message = "CID is required")
-    @Column(name = "cid", nullable = false, unique = true)
+    @Column(name = "cid", nullable = false)
     private String cid;  // Citizenship ID or Passport No
 
     @NotBlank(message = "Name is required")
