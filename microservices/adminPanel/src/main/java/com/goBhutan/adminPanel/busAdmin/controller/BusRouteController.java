@@ -2,7 +2,7 @@ package com.goBhutan.adminPanel.busAdmin.controller;
 
 import com.goBhutan.adminPanel.busAdmin.dto.RouteRegistrationRequest;
 import com.goBhutan.adminPanel.busAdmin.entity.Route;
-import com.goBhutan.adminPanel.busAdmin.service.RouteService;
+import com.goBhutan.adminPanel.busAdmin.service.BusRouteService;
 import com.goBhutan.adminPanel.common.dto.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -15,10 +15,10 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/routes")
 @CrossOrigin(origins = "*", maxAge = 3600)
-public class RouteController {
+public class BusRouteController {
 
     @Autowired
-    private RouteService routeService;
+    private BusRouteService routeService;
 
 
     @PostMapping

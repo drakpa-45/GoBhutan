@@ -1,9 +1,10 @@
 package com.goBhutan.adminPanel.busAdmin.controller;
 
 import com.goBhutan.adminPanel.busAdmin.entity.BusSeat;
-import com.goBhutan.adminPanel.busAdmin.entity.SeatConfig;
-import com.goBhutan.adminPanel.busAdmin.service.SeatConfigService;
-import com.goBhutan.adminPanel.busAdmin.service.SeatService;
+import com.goBhutan.adminPanel.busAdmin.entity.BusSeatConfig;
+import com.goBhutan.adminPanel.busAdmin.service.BusSeatConfigService;
+import com.goBhutan.adminPanel.busAdmin.service.BusSeatService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,24 +12,21 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/buses/{busId}/seat-configs")
-public class SeatConfigController {
-    private final SeatConfigService seatConfigService;
-    private final SeatService seatService;
-
-    public SeatConfigController(SeatConfigService seatConfigService, SeatService seatService) {
-        this.seatConfigService = seatConfigService;
-        this.seatService = seatService;
-    }
+public class BusSeatConfigController {
+    @Autowired
+    private  BusSeatConfigService seatConfigService;
+    @Autowired
+    private  BusSeatService seatService;
 
     @GetMapping
-    public ResponseEntity<List<SeatConfig>> getConfigs(@PathVariable Long busId) {
+    public ResponseEntity<List<BusSeatConfig>> getConfigs(@PathVariable Long busId) {
         return ResponseEntity.ok(seatConfigService.getConfigsByBus(busId));
     }
 
     @PostMapping
-    public ResponseEntity<?> addConfig(@PathVariable Long busId, @RequestBody SeatConfig config) {
+    public ResponseEntity<?> addConfig(@PathVariable Long busId, @RequestBody BusSeatConfig config) {
         try {
-            SeatConfig saved = seatConfigService.addConfig(busId, config);
+            BusSeatConfig saved = seatConfigService.addConfig(busId, config);
             return ResponseEntity.ok(saved);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -36,9 +34,9 @@ public class SeatConfigController {
     }
 
     @PutMapping("/{configId}")
-    public ResponseEntity<?> updateConfig(@PathVariable Long configId, @RequestBody SeatConfig config) {
+    public ResponseEntity<?> updateConfig(@PathVariable Long configId, @RequestBody BusSeatConfig config) {
         try {
-            SeatConfig updated = seatConfigService.updateConfig(configId, config);
+            BusSeatConfig updated = seatConfigService.updateConfig(configId, config);
             return ResponseEntity.ok(updated);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());

@@ -4,7 +4,7 @@ import com.goBhutan.adminPanel.busAdmin.dto.RouteRegistrationRequest;
 import com.goBhutan.adminPanel.busAdmin.entity.Bus;
 import com.goBhutan.adminPanel.busAdmin.entity.Route;
 import com.goBhutan.adminPanel.busAdmin.repository.BusRepository;
-import com.goBhutan.adminPanel.busAdmin.repository.RouteRepository;
+import com.goBhutan.adminPanel.busAdmin.repository.BusRouteRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -13,10 +13,10 @@ import java.util.List;
 
 @Service
 @Transactional
-public class RouteService {
+public class BusRouteService {
 
     @Autowired
-    private RouteRepository routeRepository;
+    private BusRouteRepository routeRepository;
 
     @Autowired
     private BusRepository busRepository;

@@ -2,7 +2,7 @@ package com.goBhutan.adminPanel.busAdmin.controller;
 
 import com.goBhutan.adminPanel.busAdmin.dto.ScheduleRequest;
 import com.goBhutan.adminPanel.busAdmin.entity.Schedule;
-import com.goBhutan.adminPanel.busAdmin.service.ScheduleService;
+import com.goBhutan.adminPanel.busAdmin.service.BusScheduleService;
 import com.goBhutan.adminPanel.common.dto.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -17,10 +17,10 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/schedules")
 @CrossOrigin(origins = "*", maxAge = 3600)
-public class ScheduleController {
+public class BusScheduleController {
 
     @Autowired
-    private ScheduleService scheduleService;
+    private BusScheduleService scheduleService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<Schedule>> createSchedule(@Valid @RequestBody ScheduleRequest scheduleRequest,

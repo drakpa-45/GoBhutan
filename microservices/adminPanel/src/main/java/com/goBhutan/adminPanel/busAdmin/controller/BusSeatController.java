@@ -1,7 +1,8 @@
 package com.goBhutan.adminPanel.busAdmin.controller;
 
 import com.goBhutan.adminPanel.busAdmin.entity.BusSeat;
-import com.goBhutan.adminPanel.busAdmin.service.SeatService;
+import com.goBhutan.adminPanel.busAdmin.service.BusSeatService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -9,13 +10,9 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/buses/{busId}/seats")
-public class SeatController {
-
-    private final SeatService seatService;
-
-    public SeatController(SeatService seatService) {
-        this.seatService = seatService;
-    }
+public class BusSeatController {
+    @Autowired
+    private BusSeatService seatService;
 
     @GetMapping
     public ResponseEntity<List<BusSeat>> getSeats(@PathVariable Long busId) {

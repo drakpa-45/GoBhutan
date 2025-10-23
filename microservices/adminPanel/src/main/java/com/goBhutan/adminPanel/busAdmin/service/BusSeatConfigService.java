@@ -1,31 +1,28 @@
 package com.goBhutan.adminPanel.busAdmin.service;
 
 import com.goBhutan.adminPanel.busAdmin.entity.Bus;
-import com.goBhutan.adminPanel.busAdmin.entity.SeatConfig;
+import com.goBhutan.adminPanel.busAdmin.entity.BusSeatConfig;
 import com.goBhutan.adminPanel.busAdmin.repository.BusRepository;
-import com.goBhutan.adminPanel.busAdmin.repository.SeatConfigRepository;
+import com.goBhutan.adminPanel.busAdmin.repository.BusSeatConfigRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
 @Transactional
-public class SeatConfigService {
+public class BusSeatConfigService {
+    @Autowired
+    private BusRepository busRepository;
+    @Autowired
+    private BusSeatConfigRepository seatConfigRepository;
 
-    private final BusRepository busRepository;
-    private final SeatConfigRepository seatConfigRepository;
-
-    public SeatConfigService(BusRepository busRepository, SeatConfigRepository seatConfigRepository) {
-        this.busRepository = busRepository;
-        this.seatConfigRepository = seatConfigRepository;
-    }
-
-    public List<SeatConfig> getConfigsByBus(Long busId) {
+    public List<BusSeatConfig> getConfigsByBus(Long busId) {
         return seatConfigRepository.findByBus_Id(busId);
     }
 
-    public SeatConfig addConfig(Long busId, SeatConfig config) {
+    public BusSeatConfig addConfig(Long busId, BusSeatConfig config) {
         Bus bus = busRepository.findById(busId)
                 .orElseThrow(() -> new RuntimeException("Bus not found"));
 
@@ -34,8 +31,8 @@ public class SeatConfigService {
         return seatConfigRepository.save(config);
     }
 
-    public SeatConfig updateConfig(Long configId, SeatConfig updated) {
-        SeatConfig existing = seatConfigRepository.findById(configId)
+    public BusSeatConfig updateConfig(Long configId, BusSeatConfig updated) {
+        BusSeatConfig existing = seatConfigRepository.findById(configId)
                 .orElseThrow(() -> new RuntimeException("Seat configuration not found"));
 
         validateConfig(existing.getBus(), updated, configId);
@@ -50,7 +47,7 @@ public class SeatConfigService {
         seatConfigRepository.deleteById(configId);
     }
 
-    private void validateConfig(Bus bus, SeatConfig config, Long excludeConfigId) {
+    private void validateConfig(Bus bus, BusSeatConfig config, Long excludeConfigId) {
         int totalSeats = bus.getTotalSeats();
 
         if (config.getStartNo() == null || config.getEndNo() == null) {
@@ -65,9 +62,9 @@ public class SeatConfigService {
             throw new IllegalArgumentException("Seat range must be within 1 and total seat count (" + totalSeats + ").");
         }
 
-        List<SeatConfig> existingConfigs = seatConfigRepository.findByBus_Id(bus.getId());
+        List<BusSeatConfig> existingConfigs = seatConfigRepository.findByBus_Id(bus.getId());
 
-        for (SeatConfig existing : existingConfigs) {
+        for (BusSeatConfig existing : existingConfigs) {
             if (excludeConfigId != null && existing.getId().equals(excludeConfigId)) continue;
 
             boolean overlaps = config.getStartNo() <= existing.getEndNo() &&

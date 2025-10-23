@@ -5,8 +5,8 @@ import com.goBhutan.adminPanel.busAdmin.entity.Bus;
 import com.goBhutan.adminPanel.busAdmin.entity.Route;
 import com.goBhutan.adminPanel.busAdmin.entity.Schedule;
 import com.goBhutan.adminPanel.busAdmin.repository.BusRepository;
-import com.goBhutan.adminPanel.busAdmin.repository.RouteRepository;
-import com.goBhutan.adminPanel.busAdmin.repository.ScheduleRepository;
+import com.goBhutan.adminPanel.busAdmin.repository.BusRouteRepository;
+import com.goBhutan.adminPanel.busAdmin.repository.BusScheduleRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,15 +16,15 @@ import java.util.List;
 
 @Service
 @Transactional
-public class ScheduleService {
+public class BusScheduleService {
     @Autowired
-    private ScheduleRepository scheduleRepository;
+    private BusScheduleRepository scheduleRepository;
 
     @Autowired
     private BusRepository busRepository;
 
     @Autowired
-    private RouteRepository routeRepository;
+    private BusRouteRepository routeRepository;
 
     public Schedule createSchedule(ScheduleRequest request, String adminUserId) {
         validateTimesAndPrice(request);
