@@ -9,6 +9,8 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -26,7 +28,8 @@ public class BusScheduleController {
     public ResponseEntity<ApiResponse<Schedule>> createSchedule(@Valid @RequestBody ScheduleRequest scheduleRequest,
                                                                 HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
             Schedule schedule = scheduleService.createSchedule(scheduleRequest, adminUserId);
             return ResponseEntity.ok(ApiResponse.success("Schedule created successfully", schedule));
         } catch (Exception e) {
@@ -37,7 +40,8 @@ public class BusScheduleController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<Schedule>>> getSchedules(HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
             List<Schedule> schedules = scheduleService.getSchedulesByOwner(adminUserId);
             return ResponseEntity.ok(ApiResponse.success(schedules));
         } catch (Exception e) {
@@ -48,7 +52,8 @@ public class BusScheduleController {
     @GetMapping("/bus/{busId}")
     public ResponseEntity<ApiResponse<List<Schedule>>> getSchedulesByBus(@PathVariable Long busId, HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
             List<Schedule> schedules = scheduleService.getSchedulesByBus(busId,adminUserId);
             return ResponseEntity.ok(ApiResponse.success(schedules));
         } catch (Exception e) {
@@ -59,7 +64,8 @@ public class BusScheduleController {
     @GetMapping("/route/{routeId}")
     public ResponseEntity<ApiResponse<List<Schedule>>> getSchedulesByRoute(@PathVariable Long routeId, HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
             List<Schedule> schedules = scheduleService.getSchedulesByRoute(routeId,adminUserId);
             return ResponseEntity.ok(ApiResponse.success(schedules));
         } catch (Exception e) {
@@ -73,7 +79,8 @@ public class BusScheduleController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
             List<Schedule> schedules = scheduleService.getSchedulesByDateRange(adminUserId, startDate, endDate);
             return ResponseEntity.ok(ApiResponse.success(schedules));
         } catch (Exception e) {
@@ -84,7 +91,8 @@ public class BusScheduleController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<Schedule>> getSchedule(@PathVariable Long id, HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
             Schedule schedule = scheduleService.getScheduleById(id, adminUserId);
             return ResponseEntity.ok(ApiResponse.success(schedule));
         } catch (Exception e) {
@@ -97,7 +105,8 @@ public class BusScheduleController {
                                                                 @Valid @RequestBody ScheduleRequest scheduleRequest,
                                                                 HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
             Schedule schedule = scheduleService.updateSchedule(id, scheduleRequest, adminUserId);
             return ResponseEntity.ok(ApiResponse.success("Schedule updated successfully", schedule));
         } catch (Exception e) {
@@ -108,7 +117,8 @@ public class BusScheduleController {
     @PatchMapping("/{id}/toggle-status")
     public ResponseEntity<ApiResponse<Schedule>> toggleScheduleStatus(@PathVariable Long id, HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
             Schedule schedule = scheduleService.toggleScheduleStatus(id, adminUserId);
             return ResponseEntity.ok(ApiResponse.success("Schedule status updated", schedule));
         } catch (Exception e) {
@@ -119,7 +129,8 @@ public class BusScheduleController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<String>> deleteSchedule(@PathVariable Long id, HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
             scheduleService.deleteSchedule(id, adminUserId);
             return ResponseEntity.ok(ApiResponse.success("Schedule deleted successfully", "Schedule deleted"));
         } catch (Exception e) {
