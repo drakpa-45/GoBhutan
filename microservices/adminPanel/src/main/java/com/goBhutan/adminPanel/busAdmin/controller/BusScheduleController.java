@@ -13,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -44,6 +45,22 @@ public class BusScheduleController {
             String adminUserId = principal.getSubject();
             List<Schedule> schedules = scheduleService.getSchedulesByOwner(adminUserId);
             return ResponseEntity.ok(ApiResponse.success(schedules));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/bus/{busId}/generate")
+    public ResponseEntity<ApiResponse<List<Schedule>>> generateSchedules(
+            @PathVariable Long busId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(defaultValue = "14") int daysToGenerate,
+            HttpServletRequest request) {
+        try {
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
+            List<Schedule> schedules = scheduleService.generateSchedules(busId, startDate, daysToGenerate, adminUserId);
+            return ResponseEntity.ok(ApiResponse.success("Schedules generated successfully", schedules));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }

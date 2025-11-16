@@ -1,6 +1,6 @@
 package com.goBhutan.adminPanel.busAdmin.service;
 
-import com.goBhutan.adminPanel.busAdmin.dto.SeatType;
+import com.goBhutan.adminPanel.busAdmin.enums.SeatType;
 import com.goBhutan.adminPanel.busAdmin.entity.Bus;
 import com.goBhutan.adminPanel.busAdmin.entity.BusSeat;
 import com.goBhutan.adminPanel.busAdmin.entity.BusSeatConfig;

@@ -1,7 +1,7 @@
 package com.goBhutan.adminPanel.busAdmin.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.goBhutan.adminPanel.busAdmin.dto.SeatType;
+import com.goBhutan.adminPanel.busAdmin.enums.SeatType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;

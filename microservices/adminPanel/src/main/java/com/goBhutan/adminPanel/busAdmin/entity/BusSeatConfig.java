@@ -1,8 +1,9 @@
 package com.goBhutan.adminPanel.busAdmin.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.goBhutan.adminPanel.busAdmin.dto.SeatType;
+import com.goBhutan.adminPanel.busAdmin.enums.SeatType;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -29,9 +30,14 @@ public class BusSeatConfig {
     @Column(name = "seat_type", nullable = false)
     private SeatType seatType;
 
+    @Column(name = "seat_label")
+    private String seatLabel;
+
+
     // Avoids proxy serialization + recursion
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "bus_id", nullable = false)
+    @JsonIgnore
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "routes", "schedules", "seatConfigs"})
     private Bus bus;
 

@@ -1,6 +1,7 @@
 package com.goBhutan.adminPanel.busAdmin.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.goBhutan.adminPanel.busAdmin.enums.RecurrenceType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -10,8 +11,11 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.DayOfWeek;
+import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Set;
 
 @Entity
 @Table(name = "tbl_bs_buses")
@@ -47,6 +51,9 @@ public class Bus {
     @Column(name = "admin_user_id")
     private String adminUserId;   // Keycloak user ID
 
+    @Column(name = "layout_type")
+    private String layoutType; // e.g., 19 ="1+2", 32="2+2", 40="2+3"
+
     @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Route> routes = new ArrayList<>();
@@ -58,4 +65,20 @@ public class Bus {
     @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonIgnoreProperties({"bus"})  // avoids infinite recursion
     private List<BusSeatConfig> seatConfigs = new ArrayList<>();
+
+    // 👇 recurrence type for auto schedule generation
+    @Enumerated(EnumType.STRING)
+    @Column(name = "recurrence_type", nullable = false)
+    private RecurrenceType recurrenceType = RecurrenceType.DAILY;
+
+    // 👇 applicable only if recurrenceType == CUSTOM
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "tbl_bs_operating_days", joinColumns = @JoinColumn(name = "bus_id"))
+    @Column(name = "day_of_week")
+    @Enumerated(EnumType.STRING)
+    private Set<DayOfWeek> operatingDays = new HashSet<>();
+
+    @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<BusRouteMap> routeMappings = new ArrayList<>();
 }

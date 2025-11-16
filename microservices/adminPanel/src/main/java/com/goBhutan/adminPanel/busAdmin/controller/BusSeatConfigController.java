@@ -1,6 +1,5 @@
 package com.goBhutan.adminPanel.busAdmin.controller;
 
-import com.goBhutan.adminPanel.busAdmin.entity.BusSeat;
 import com.goBhutan.adminPanel.busAdmin.entity.BusSeatConfig;
 import com.goBhutan.adminPanel.busAdmin.service.BusSeatConfigService;
 import com.goBhutan.adminPanel.busAdmin.service.BusSeatService;
@@ -9,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/buses/{busId}/seat-configs")
@@ -23,7 +23,18 @@ public class BusSeatConfigController {
         return ResponseEntity.ok(seatConfigService.getConfigsByBus(busId));
     }
 
-    @PostMapping
+    // API Example
+    @PostMapping("/generate-seats")
+    public ResponseEntity<?> generateLayout(@PathVariable Long busId,@RequestParam(defaultValue = "false") boolean forceRegenerate) {
+        try {
+            List<BusSeatConfig> seats = seatConfigService.generateSeatLayout(busId, forceRegenerate);
+            return ResponseEntity.ok(seats);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+   /* @PostMapping
     public ResponseEntity<?> addConfig(@PathVariable Long busId, @RequestBody BusSeatConfig config) {
         try {
             BusSeatConfig saved = seatConfigService.addConfig(busId, config);
@@ -57,5 +68,6 @@ public class BusSeatConfigController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
-    }
+    }*/
+
 }
