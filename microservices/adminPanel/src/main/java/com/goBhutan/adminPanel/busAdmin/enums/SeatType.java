@@ -1,13 +1,12 @@
-package com.goBhutan.adminPanel.busAdmin.dto;
-
-import lombok.Data;
+package com.goBhutan.adminPanel.busAdmin.enums;
 
 public enum SeatType {
     FRONT(1, "Front Seat"),
     WINDOW(2, "Window Seat"),
     AISLE(3, "Aisle Seat"),
-    FRONT_WINDOW(4, "Front-Window Seat"),
-    BACK(5, "Back Seat");
+    BACK(4, "Back Seat"),
+    FRONT_WINDOW(5, "Front Window Seat"),
+    BACK_WINDOW(6, "Back Window Seat");
 
     private final int code;
     private final String label;

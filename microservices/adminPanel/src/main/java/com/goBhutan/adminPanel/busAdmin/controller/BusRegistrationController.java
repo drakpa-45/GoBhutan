@@ -35,7 +35,6 @@ public class BusRegistrationController {
         try {
             Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             String adminUserId = principal.getSubject();
-            //hotel.setAdminUserId(userId);
 
             Bus bus = busService.registerBus(busRegistrationRequest, adminUserId);
             return ResponseEntity.ok(ApiResponse.success("Bus registered successfully", bus));

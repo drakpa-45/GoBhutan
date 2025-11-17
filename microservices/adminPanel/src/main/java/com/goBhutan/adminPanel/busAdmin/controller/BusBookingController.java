@@ -8,6 +8,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -24,7 +26,8 @@ public class BusBookingController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<Bookings>>> getBookings(HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
             List<Bookings> bookings = busBookingService.findByBusAdminUserId(adminUserId);
             return ResponseEntity.ok(ApiResponse.success(bookings));
         } catch (Exception e) {
@@ -35,7 +38,8 @@ public class BusBookingController {
     @GetMapping("/schedule/{scheduleId}")
     public ResponseEntity<ApiResponse<List<Bookings>>> getBookingsBySchedule(@PathVariable Long scheduleId, HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
             List<Bookings> bookings = busBookingService.getBookingsBySchedule(scheduleId);
             return ResponseEntity.ok(ApiResponse.success(bookings));
         } catch (Exception e) {
@@ -46,7 +50,8 @@ public class BusBookingController {
     @GetMapping("/revenue")
     public ResponseEntity<ApiResponse<RevenueReport>> getRevenueReport(HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
             RevenueReport report = busBookingService.getRevenueReport(adminUserId);
             return ResponseEntity.ok(ApiResponse.success(report));
         } catch (Exception e) {
@@ -60,11 +65,15 @@ public class BusBookingController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             HttpServletRequest request) {
         try {
-            String adminUserId = "LLL";
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
             RevenueReport report = busBookingService.getRevenueReportByDateRange(adminUserId, startDate, endDate);
             return ResponseEntity.ok(ApiResponse.success(report));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
+
+
+
 }
