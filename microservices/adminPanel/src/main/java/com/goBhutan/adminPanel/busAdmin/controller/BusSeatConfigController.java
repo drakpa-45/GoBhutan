@@ -1,8 +1,9 @@
 package com.goBhutan.adminPanel.busAdmin.controller;
 
+import com.goBhutan.adminPanel.busAdmin.dto.SeatDetailsDTO;
 import com.goBhutan.adminPanel.busAdmin.entity.BusSeatConfig;
 import com.goBhutan.adminPanel.busAdmin.service.BusSeatConfigService;
-import com.goBhutan.adminPanel.busAdmin.service.BusSeatService;
+import com.goBhutan.adminPanel.common.dto.ApiResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,15 +16,28 @@ import java.util.Map;
 public class BusSeatConfigController {
     @Autowired
     private  BusSeatConfigService seatConfigService;
-    @Autowired
-    private  BusSeatService seatService;
+
+//    @GetMapping
+//    public ResponseEntity<ApiResponse<List<BusSeatConfig>>> getConfigs(@PathVariable Long busId) {
+//        List<BusSeatConfig> seats = seatConfigService.getConfigsByBus(busId);
+//        return ResponseEntity.ok(ApiResponse.success(seats));
+//        //return ResponseEntity.ok(seatConfigService.getConfigsByBus(busId));
+//    }
 
     @GetMapping
-    public ResponseEntity<List<BusSeatConfig>> getConfigs(@PathVariable Long busId) {
-        return ResponseEntity.ok(seatConfigService.getConfigsByBus(busId));
+    public ResponseEntity<ApiResponse<List<SeatDetailsDTO>>> getConfigs(@PathVariable Long busId) {
+
+        List<SeatDetailsDTO> seats = seatConfigService.getConfigsByBus(busId)
+                .stream()
+                .map(s -> new SeatDetailsDTO(s.getStartNo(),
+                        s.getSeatLabel(),
+                        s.getSeatType(),
+                        null ))
+                .toList();
+
+        return ResponseEntity.ok(ApiResponse.success(seats));
     }
 
-    // API Example
     @PostMapping("/generate-seats")
     public ResponseEntity<?> generateLayout(@PathVariable Long busId,@RequestParam(defaultValue = "false") boolean forceRegenerate) {
         try {
@@ -33,41 +47,5 @@ public class BusSeatConfigController {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
-
-   /* @PostMapping
-    public ResponseEntity<?> addConfig(@PathVariable Long busId, @RequestBody BusSeatConfig config) {
-        try {
-            BusSeatConfig saved = seatConfigService.addConfig(busId, config);
-            return ResponseEntity.ok(saved);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
-    }
-
-    @PutMapping("/{configId}")
-    public ResponseEntity<?> updateConfig(@PathVariable Long configId, @RequestBody BusSeatConfig config) {
-        try {
-            BusSeatConfig updated = seatConfigService.updateConfig(configId, config);
-            return ResponseEntity.ok(updated);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
-    }
-
-    @DeleteMapping("/{configId}")
-    public ResponseEntity<Void> deleteConfig(@PathVariable Long configId) {
-        seatConfigService.deleteConfig(configId);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PostMapping("/generate-seats")
-    public ResponseEntity<?> generateSeats(@PathVariable Long busId) {
-        try {
-            List<BusSeat> seats = seatService.generateSeatsForBus(busId);
-            return ResponseEntity.ok(seats);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
-    }*/
 
 }

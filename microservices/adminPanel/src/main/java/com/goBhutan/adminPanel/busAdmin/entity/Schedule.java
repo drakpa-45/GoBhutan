@@ -45,96 +45,10 @@ public class Schedule {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "route_id", nullable = false)
     @JsonIgnore
-    private Route route;
+    private BusRoute route;
 
-    @OneToMany(mappedBy = "schedule", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JsonIgnore
-    private List<Bookings> bookings = new ArrayList<>();
+//    @OneToMany(mappedBy = "schedule", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+//    @JsonIgnore
+//    private List<Bookings> bookings = new ArrayList<>();
 
-    public Schedule() {
-    }
-
-    public Schedule(Long id, @NotNull(message = "Departure time is required") LocalDateTime departureTime, @NotNull(message = "Arrival time is required") LocalDateTime arrivalTime, @NotNull(message = "Price is required") BigDecimal price, Integer availableSeats, Boolean active, Bus bus, Route route, List<Bookings> bookings) {
-        this.id = id;
-        this.departureTime = departureTime;
-        this.arrivalTime = arrivalTime;
-        this.price = price;
-        this.availableSeats = availableSeats;
-        this.active = active;
-        this.bus = bus;
-        this.route = route;
-        this.bookings = bookings;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public LocalDateTime getDepartureTime() {
-        return departureTime;
-    }
-
-    public void setDepartureTime(LocalDateTime departureTime) {
-        this.departureTime = departureTime;
-    }
-
-    public LocalDateTime getArrivalTime() {
-        return arrivalTime;
-    }
-
-    public void setArrivalTime(LocalDateTime arrivalTime) {
-        this.arrivalTime = arrivalTime;
-    }
-
-    public BigDecimal getPrice() {
-        return price;
-    }
-
-    public void setPrice(BigDecimal price) {
-        this.price = price;
-    }
-
-    public Integer getAvailableSeats() {
-        return availableSeats;
-    }
-
-    public void setAvailableSeats(Integer availableSeats) {
-        this.availableSeats = availableSeats;
-    }
-
-    public Boolean getActive() {
-        return active;
-    }
-
-    public void setActive(Boolean active) {
-        this.active = active;
-    }
-
-    public Bus getBus() {
-        return bus;
-    }
-
-    public void setBus(Bus bus) {
-        this.bus = bus;
-    }
-
-    public Route getRoute() {
-        return route;
-    }
-
-    public void setRoute(Route route) {
-        this.route = route;
-    }
-
-    public List<Bookings> getBookings() {
-        return bookings;
-    }
-
-    public void setBookings(List<Bookings> bookings) {
-        this.bookings = bookings;
-    }
 }

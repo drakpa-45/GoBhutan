@@ -11,7 +11,8 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @NoArgsConstructor
 public class SeatDetailsDTO {
-    private String seatNumber;
+    private Integer seatNumber;
+    private String seatLabel;
     private SeatType seatType;
     private BigDecimal fare;
 }

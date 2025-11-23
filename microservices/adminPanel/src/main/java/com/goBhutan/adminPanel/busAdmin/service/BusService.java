@@ -1,6 +1,7 @@
 package com.goBhutan.adminPanel.busAdmin.service;
 
 import com.goBhutan.adminPanel.busAdmin.dto.BusRegistrationRequest;
+import com.goBhutan.adminPanel.busAdmin.dto.BusResponseDTO;
 import com.goBhutan.adminPanel.busAdmin.entity.Bus;
 import com.goBhutan.adminPanel.busAdmin.enums.RecurrenceType;
 import com.goBhutan.adminPanel.busAdmin.repository.BusRepository;
@@ -8,6 +9,7 @@ import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 @Service
@@ -52,6 +54,28 @@ public class BusService {
                 .orElseThrow(() -> new RuntimeException("Bus not found"));
     }
 
+    public BusResponseDTO toDetailsDTO(Bus bus) {
+        BusResponseDTO dto = new BusResponseDTO();
+
+        dto.setId(bus.getId());
+        dto.setBusNumber(bus.getBusNumber());
+        dto.setBusType(bus.getBusType());
+        dto.setTotalSeats(bus.getTotalSeats());
+        dto.setDescription(bus.getDescription());
+        dto.setAmenities(bus.getAmenities());
+        dto.setAdminUserId(bus.getAdminUserId());
+        dto.setLayoutType(bus.getLayoutType());
+        //dto.setRecurrenceType(bus.getRecurrenceType());
+        //dto.setOperatingDays(bus.getOperatingDays());
+
+        // LAZY → ensure loaded
+        dto.setSeats(new ArrayList<>(bus.getSeatConfigs()));
+      //  dto.setBusRoutes(new ArrayList<>(bus.getBusRoutes()));
+       // dto.setSchedules(new ArrayList<>(bus.getSchedules()));
+
+        return dto;
+    }
+
     public Bus updateBus(Long busId, BusRegistrationRequest request, String adminUserId) {
         Bus bus = getBusById(busId, adminUserId);
 
@@ -84,5 +108,6 @@ public class BusService {
         Bus bus = getBusById(busId, adminUserId);
         busRepository.delete(bus);
     }
+
 
 }

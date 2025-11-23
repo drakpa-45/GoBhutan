@@ -1,82 +1,99 @@
 package com.goBhutan.adminPanel.busAdmin.service;
 
-import com.goBhutan.adminPanel.busAdmin.dto.RevenueReport;
-import com.goBhutan.adminPanel.busAdmin.entity.Bookings;
-import com.goBhutan.adminPanel.busAdmin.repository.BusBookingRepository;
+import com.goBhutan.adminPanel.busAdmin.entity.Schedule;
+import com.goBhutan.adminPanel.busAdmin.entity.SeatBooking;
+import com.goBhutan.adminPanel.busAdmin.enums.BookingStatus;
+import com.goBhutan.adminPanel.busAdmin.repository.BusScheduleRepository;
+import com.goBhutan.adminPanel.busAdmin.repository.SeatBookingRepository;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.stream.Collectors;
-
+import java.util.UUID;
 @Service
 @Transactional
+@RequiredArgsConstructor
 public class BusBookingService {
-    @Autowired
-    private BusBookingRepository busBookingRepository;
 
-    public List<Bookings> getBookingsByOwner(String adminUserId) {
-        return busBookingRepository.findBySchedule_Bus_AdminUserId(adminUserId);
+    private final BusScheduleRepository scheduleRepo;
+
+    private final SeatBookingRepository bookingRepo;
+
+
+
+    /**
+     * Step 1: LOCK SEAT (5 minute hold)
+     */
+    public SeatBooking lockSeat(Long scheduleId, int seatNumber, String userId) {
+
+        // Release expired locks
+        bookingRepo.releaseExpiredLocks(LocalDateTime.now());
+
+        // Check if seat is taken
+        boolean taken = bookingRepo.isSeatTaken(scheduleId, seatNumber, LocalDateTime.now());
+        if (taken)
+            throw new RuntimeException("Seat already booked or locked.");
+
+        // Lock schedule to prevent race conditions
+        Schedule schedule = scheduleRepo.lockSchedule(scheduleId);
+
+        SeatBooking booking = new SeatBooking();
+        booking.setSchedule(schedule);
+        booking.setSeatNumber(seatNumber);
+        booking.setUserId(userId);
+        booking.setStatus(BookingStatus.LOCKED);
+        booking.setLockExpiry(LocalDateTime.now().plusMinutes(5));
+        booking.setPaymentRef(UUID.randomUUID().toString()); // temporary token
+
+        return bookingRepo.save(booking);
     }
 
-    public List<Bookings> getBookingsBySchedule(Long scheduleId) {
-        return busBookingRepository.findBySchedule_Id(scheduleId);
-    }
+    public SeatBooking confirmBooking(String paymentRef, String userId) {
 
-    public RevenueReport getRevenueReport(String adminUserId) {
-        List<Bookings> bookings = busBookingRepository.findBySchedule_Bus_AdminUserId(adminUserId);
-        BigDecimal totalRevenue =
-                busBookingRepository.getTotalRevenueByAdminUserIdAndStatus(
-                        adminUserId, Bookings.BookingStatus.CONFIRMED);
+        SeatBooking booking = bookingRepo.findByPaymentRef(paymentRef)
+                .orElseThrow(() -> new RuntimeException("Invalid booking reference"));
 
-        List<RevenueReport.BookingInfo> bookingInfos = bookings.stream()
-                .map(this::convertToBookingInfo)
-                .collect(Collectors.toList());
+        if (!booking.getUserId().equals(userId))
+            throw new RuntimeException("Unauthorized booking confirmation");
 
-        return new RevenueReport(totalRevenue, bookings.size(), bookingInfos);
-    }
+        if (booking.getStatus() != BookingStatus.LOCKED)
+            throw new RuntimeException("Booking is not in locked state");
 
-    public RevenueReport getRevenueReportByDateRange(
-            String adminUserId, LocalDateTime startDate, LocalDateTime endDate) {
+        if (booking.getLockExpiry().isBefore(LocalDateTime.now()))
+            throw new RuntimeException("Seat lock has expired");
 
-        List<Bookings> bookings =
-                busBookingRepository.findBySchedule_Bus_AdminUserIdAndBookingTimeBetween(
-                        adminUserId, startDate, endDate);
+        // CONVERT LOCK → BOOKED
+        booking.setStatus(BookingStatus.BOOKED);
+        booking.setLockExpiry(null);
 
-        BigDecimal totalRevenue =
-                busBookingRepository.getRevenueByAdminUserIdAndDateRangeAndStatus(
-                        adminUserId, startDate, endDate, Bookings.BookingStatus.CONFIRMED);
+        // Reduce available seats
+        Schedule schedule = booking.getSchedule();
+        schedule.setAvailableSeats(schedule.getAvailableSeats() - 1);
+        scheduleRepo.save(schedule);
 
-        List<RevenueReport.BookingInfo> bookingInfos = bookings.stream()
-                .map(this::convertToBookingInfo)
-                .collect(Collectors.toList());
-
-        return new RevenueReport(totalRevenue, bookings.size(), bookingInfos);
+        return bookingRepo.save(booking);
     }
 
 
+    /**
+     * Step 3: CANCEL BOOKING (user or admin)
+     */
+    public SeatBooking cancel(Long bookingId, String userId) {
+        SeatBooking booking = bookingRepo.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
 
-    private RevenueReport.BookingInfo convertToBookingInfo(Bookings booking) {
-        RevenueReport.BookingInfo info = new RevenueReport.BookingInfo();
-        info.setId(booking.getId());
-        info.setPassengerName(booking.getPassengerName());
-        info.setPassengerEmail(booking.getPassengerEmail());
-        info.setSeatNumber(booking.getSeatNumber());
-        info.setTotalAmount(booking.getTotalAmount());
-        info.setBusNumber(booking.getSchedule().getBus().getBusNumber());
-        info.setRoute(booking.getSchedule().getRoute().getSource() + " -> " +
-                booking.getSchedule().getRoute().getDestination());
-        info.setDepartureTime(booking.getSchedule().getDepartureTime()
-                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-        info.setStatus(booking.getStatus().toString());
-        return info;
-    }
+        if (!booking.getUserId().equals(userId))
+            throw new RuntimeException("Unauthorized cancellation");
 
-    public List<Bookings> findByBusAdminUserId(String adminUserId) {
-        return null;
+        booking.setStatus(BookingStatus.CANCELLED);
+        booking.setLockExpiry(null);
+
+        // Restore seat
+        Schedule schedule = booking.getSchedule();
+        schedule.setAvailableSeats(schedule.getAvailableSeats() + 1);
+        scheduleRepo.save(schedule);
+
+        return bookingRepo.save(booking);
     }
 }
