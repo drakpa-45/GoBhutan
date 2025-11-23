@@ -13,12 +13,13 @@ import java.util.List;
 @Repository
 public interface SeatRepository extends JpaRepository<Seat, String> {
 
-    // --- Existing methods ---
+    // Existing simple queries (no change)
     Page<Seat> findAllByIsActiveTrueOrderByRowNameAscSeatNumberAsc(Pageable pageable);
     Page<Seat> findByHallIdAndIsActiveTrueOrderByRowNameAscSeatNumberAsc(String hallId, Pageable pageable);
     List<Seat> findByHallIdAndIsActiveTrueOrderByRowNameAscSeatNumberAsc(String hallId);
     List<Seat> findByHallIdAndSeatClassAndIsActiveTrueOrderByRowNameAscSeatNumberAsc(String hallId, Seat.SeatClass seatClass);
     boolean existsByHallIdAndRowNameAndSeatNumber(String hallId, String rowName, String seatNumber);
+
 
     @Query("SELECT COUNT(s) FROM Seat s WHERE s.hall.id = :hallId AND s.isActive = true")
     Long countByHallIdAndIsActive(@Param("hallId") String hallId);
@@ -87,12 +88,12 @@ public interface SeatRepository extends JpaRepository<Seat, String> {
     @Query("SELECT COUNT(s) FROM Seat s WHERE s.isActive = true")
     Long countAllActiveSeats();
 
-    /** Get seat statistics by theater */
+    /** ✅ Theater seat stats */
     @Query("SELECT s.hall.theater.id, s.hall.theater.name, COUNT(s), SUM(CASE WHEN s.isBlocked = true THEN 1 ELSE 0 END) " +
             "FROM Seat s WHERE s.isActive = true GROUP BY s.hall.theater.id, s.hall.theater.name")
     List<Object[]> getSeatStatisticsByTheater();
 
-    /** Soft delete (deactivate) seats by hall ID */
     @Query("UPDATE Seat s SET s.isActive = false WHERE s.hall.id = :hallId")
     void deactivateSeatsByHallId(@Param("hallId") String hallId);
 }
+
