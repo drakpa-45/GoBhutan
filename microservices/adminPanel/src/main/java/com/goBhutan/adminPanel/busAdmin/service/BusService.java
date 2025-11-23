@@ -2,11 +2,13 @@ package com.goBhutan.adminPanel.busAdmin.service;
 
 import com.goBhutan.adminPanel.busAdmin.dto.BusRegistrationRequest;
 import com.goBhutan.adminPanel.busAdmin.entity.Bus;
+import com.goBhutan.adminPanel.busAdmin.enums.RecurrenceType;
 import com.goBhutan.adminPanel.busAdmin.repository.BusRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.List;
 @Service
 @Transactional
@@ -25,7 +27,18 @@ public class BusService {
         bus.setTotalSeats(request.getTotalSeats());
         bus.setDescription(request.getDescription());
         bus.setAmenities(request.getAmenities());
+        bus.setLayoutType(request.getLayoutType());
         bus.setAdminUserId(adminUserId);
+
+        bus.setRecurrenceType(request.getRecurrenceType() != null
+                ? request.getRecurrenceType()
+                : RecurrenceType.DAILY);
+
+        if (bus.getRecurrenceType() == RecurrenceType.CUSTOM) {
+            bus.setOperatingDays(request.getOperatingDays() != null
+                    ? request.getOperatingDays()
+                    : new HashSet<>());
+        }
 
         return busRepository.save(bus);
     }
@@ -54,6 +67,15 @@ public class BusService {
         bus.setTotalSeats(request.getTotalSeats());
         bus.setDescription(request.getDescription());
         bus.setAmenities(request.getAmenities());
+
+        bus.setRecurrenceType(request.getRecurrenceType());
+
+        if (request.getRecurrenceType() == RecurrenceType.CUSTOM) {
+            bus.setOperatingDays(request.getOperatingDays());
+        } else {
+            bus.getOperatingDays().clear();
+        }
+
 
         return busRepository.save(bus);
     }

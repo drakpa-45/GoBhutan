@@ -1,9 +1,13 @@
 package com.goBhutan.adminPanel.busAdmin.dto;
 
+import com.goBhutan.adminPanel.busAdmin.enums.RecurrenceType;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
+
+import java.time.DayOfWeek;
+import java.util.Set;
 
 @Data
 public class BusRegistrationRequest {
@@ -18,53 +22,7 @@ public class BusRegistrationRequest {
     private Integer totalSeats;
     private String description;
     private String amenities;
-    public BusRegistrationRequest() {}
-
-    public String getBusNumber() {
-        return busNumber;
-    }
-
-    public void setBusNumber(String busNumber) {
-        this.busNumber = busNumber;
-    }
-
-    public String getBusType() {
-        return busType;
-    }
-
-    public String getBusName() {
-        return busName;
-    }
-
-    public void setBusName(String busName) {
-        this.busName = busName;
-    }
-
-    public void setBusType(String busType) {
-        this.busType = busType;
-    }
-
-    public Integer getTotalSeats() {
-        return totalSeats;
-    }
-
-    public void setTotalSeats(Integer totalSeats) {
-        this.totalSeats = totalSeats;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getAmenities() {
-        return amenities;
-    }
-
-    public void setAmenities(String amenities) {
-        this.amenities = amenities;
-    }
+    private String layoutType;
+    private RecurrenceType recurrenceType;
+    private Set<DayOfWeek> operatingDays;
 }

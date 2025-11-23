@@ -147,7 +147,7 @@ public class BusScheduleService {
         }
     }
 
-
+    @Transactional
     public List<Schedule> generateSchedules(Long busId, LocalDate startDate, int daysToGenerate, String adminUserId) {
         Bus bus = busRepository.findByIdAndAdminUserId(busId, adminUserId)
                 .orElseThrow(() -> new RuntimeException("Bus not found"));
