@@ -25,8 +25,20 @@ public class SeatBooking {
     @JoinColumn(name = "schedule_id", nullable = false)
     private Schedule schedule;
 
+    @Column(name = "applicant_cid", nullable = false)
+    private String applicantCid;
+
+    @Column(name = "applicant_mobile")
+    private String applicantMobile;
+
+    @Column(name = "applicant_email")
+    private String applicantEmail;
+
     @Column(name = "seat_number", nullable = false)
     private Integer seatNumber;
+
+    @Column(name = "seat_label", nullable = false)
+    private String seatLabel;
 
     @Column(name = "user_id", nullable = false)
     private String userId;
