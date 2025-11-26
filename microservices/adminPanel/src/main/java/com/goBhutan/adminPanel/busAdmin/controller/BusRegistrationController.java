@@ -2,6 +2,8 @@ package com.goBhutan.adminPanel.busAdmin.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goBhutan.adminPanel.busAdmin.dto.BusRegistrationRequest;
+import com.goBhutan.adminPanel.busAdmin.dto.BusResponseDTO;
+import com.goBhutan.adminPanel.busAdmin.dto.BusRouteResponse;
 import com.goBhutan.adminPanel.busAdmin.entity.Bus;
 import com.goBhutan.adminPanel.busAdmin.service.BusService;
 import com.goBhutan.adminPanel.common.dto.ApiResponse;
@@ -68,6 +70,21 @@ public class BusRegistrationController {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
+
+    @GetMapping("bus/{id}")
+    public ResponseEntity<ApiResponse<BusResponseDTO>> getBus(@PathVariable Long id) {
+        try {
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
+            Bus bus = busService.getBusById(id, adminUserId);
+            BusResponseDTO dto = busService.toDetailsDTO(bus);
+            return ResponseEntity.ok(ApiResponse.success(dto));
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<Bus>> updateBus(@PathVariable Long id,

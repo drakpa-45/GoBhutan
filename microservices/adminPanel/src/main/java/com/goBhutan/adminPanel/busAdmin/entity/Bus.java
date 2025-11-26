@@ -54,31 +54,29 @@ public class Bus {
     @Column(name = "layout_type")
     private String layoutType; // e.g., 19 ="1+2", 32="2+2", 40="2+3"
 
+    // ===================== UNIFIED BUS ROUTES =====================
     @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonIgnore
-    private List<Route> routes = new ArrayList<>();
+    private List<BusRoute> busRoutes = new ArrayList<>();
 
+    // ===================== SCHEDULES =====================
     @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Schedule> schedules = new ArrayList<>();
 
+    // ===================== SEAT CONFIG =====================
     @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @JsonIgnoreProperties({"bus"})  // avoids infinite recursion
+    @JsonIgnore
     private List<BusSeatConfig> seatConfigs = new ArrayList<>();
 
-    // 👇 recurrence type for auto schedule generation
+    // ===================== RECURRENCE SETTINGS =====================
     @Enumerated(EnumType.STRING)
     @Column(name = "recurrence_type", nullable = false)
     private RecurrenceType recurrenceType = RecurrenceType.DAILY;
 
-    // 👇 applicable only if recurrenceType == CUSTOM
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "tbl_bs_operating_days", joinColumns = @JoinColumn(name = "bus_id"))
     @Column(name = "day_of_week")
     @Enumerated(EnumType.STRING)
     private Set<DayOfWeek> operatingDays = new HashSet<>();
-
-    @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonIgnore
-    private List<BusRouteMap> routeMappings = new ArrayList<>();
 }

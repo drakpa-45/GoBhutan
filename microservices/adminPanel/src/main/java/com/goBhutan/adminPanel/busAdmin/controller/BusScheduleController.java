@@ -1,13 +1,11 @@
 package com.goBhutan.adminPanel.busAdmin.controller;
 
-import com.goBhutan.adminPanel.busAdmin.dto.ScheduleRequest;
+import com.goBhutan.adminPanel.busAdmin.dto.GenerateScheduleRequest;
 import com.goBhutan.adminPanel.busAdmin.entity.Schedule;
 import com.goBhutan.adminPanel.busAdmin.service.BusScheduleService;
 import com.goBhutan.adminPanel.common.dto.ApiResponse;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.format.annotation.DateTimeFormat;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -18,140 +16,67 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/schedules")
-@CrossOrigin(origins = "*", maxAge = 3600)
 public class BusScheduleController {
 
-    @Autowired
-    private BusScheduleService scheduleService;
+    private final BusScheduleService scheduleService;
 
-    @PostMapping
-    public ResponseEntity<ApiResponse<Schedule>> createSchedule(@Valid @RequestBody ScheduleRequest scheduleRequest,
-                                                                HttpServletRequest request) {
-        try {
-            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            String adminUserId = principal.getSubject();
-            Schedule schedule = scheduleService.createSchedule(scheduleRequest, adminUserId);
-            return ResponseEntity.ok(ApiResponse.success("Schedule created successfully", schedule));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
+    // ============= Generate Schedules =============
+    @PostMapping("/bus/generate")
+    public ResponseEntity<ApiResponse<List<Schedule>>> generate(@Valid @RequestBody GenerateScheduleRequest req) {
+
+        Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String adminUserId = principal.getSubject();
+
+        List<Schedule> schedules = scheduleService.generateSchedules(
+                req.getBusId(),
+                req.getStartDate(),
+                req.getDays(),
+                adminUserId
+        );
+
+        return ResponseEntity.ok(ApiResponse.success("Schedules generated", schedules));
     }
 
-    @GetMapping
-    public ResponseEntity<ApiResponse<List<Schedule>>> getSchedules(HttpServletRequest request) {
-        try {
-            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            String adminUserId = principal.getSubject();
-            List<Schedule> schedules = scheduleService.getSchedulesByOwner(adminUserId);
-            return ResponseEntity.ok(ApiResponse.success(schedules));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
-    }
-
-    @PostMapping("/bus/{busId}/generate")
-    public ResponseEntity<ApiResponse<List<Schedule>>> generateSchedules(
-            @PathVariable Long busId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(defaultValue = "14") int daysToGenerate,
-            HttpServletRequest request) {
-        try {
-            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            String adminUserId = principal.getSubject();
-            List<Schedule> schedules = scheduleService.generateSchedules(busId, startDate, daysToGenerate, adminUserId);
-            return ResponseEntity.ok(ApiResponse.success("Schedules generated successfully", schedules));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
-    }
-
+    // ============= Read-Only Endpoints =============
     @GetMapping("/bus/{busId}")
-    public ResponseEntity<ApiResponse<List<Schedule>>> getSchedulesByBus(@PathVariable Long busId, HttpServletRequest request) {
-        try {
-            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            String adminUserId = principal.getSubject();
-            List<Schedule> schedules = scheduleService.getSchedulesByBus(busId,adminUserId);
-            return ResponseEntity.ok(ApiResponse.success(schedules));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
+    public ResponseEntity<ApiResponse<List<Schedule>>> getByBus(@PathVariable Long busId) {
+        String adminUserId = ((Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getSubject();
+        return ResponseEntity.ok(ApiResponse.success(scheduleService.getSchedulesByBus(busId, adminUserId)));
     }
 
     @GetMapping("/route/{routeId}")
-    public ResponseEntity<ApiResponse<List<Schedule>>> getSchedulesByRoute(@PathVariable Long routeId, HttpServletRequest request) {
-        try {
-            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            String adminUserId = principal.getSubject();
-            List<Schedule> schedules = scheduleService.getSchedulesByRoute(routeId,adminUserId);
-            return ResponseEntity.ok(ApiResponse.success(schedules));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
-    }
-
-    @GetMapping("/date-range")
-    public ResponseEntity<ApiResponse<List<Schedule>>> getSchedulesByDateRange(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
-            HttpServletRequest request) {
-        try {
-            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            String adminUserId = principal.getSubject();
-            List<Schedule> schedules = scheduleService.getSchedulesByDateRange(adminUserId, startDate, endDate);
-            return ResponseEntity.ok(ApiResponse.success(schedules));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
+    public ResponseEntity<ApiResponse<List<Schedule>>> getByRoute(@PathVariable Long routeId) {
+        String adminUserId = ((Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getSubject();
+        return ResponseEntity.ok(ApiResponse.success(scheduleService.getSchedulesByRoute(routeId, adminUserId)));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<Schedule>> getSchedule(@PathVariable Long id, HttpServletRequest request) {
-        try {
-            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            String adminUserId = principal.getSubject();
-            Schedule schedule = scheduleService.getScheduleById(id, adminUserId);
-            return ResponseEntity.ok(ApiResponse.success(schedule));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
+    public ResponseEntity<ApiResponse<Schedule>> getById(@PathVariable Long id) {
+        String adminUserId = ((Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getSubject();
+        return ResponseEntity.ok(ApiResponse.success(scheduleService.getScheduleById(id, adminUserId)));
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<Schedule>> updateSchedule(@PathVariable Long id,
-                                                                @Valid @RequestBody ScheduleRequest scheduleRequest,
-                                                                HttpServletRequest request) {
-        try {
-            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            String adminUserId = principal.getSubject();
-            Schedule schedule = scheduleService.updateSchedule(id, scheduleRequest, adminUserId);
-            return ResponseEntity.ok(ApiResponse.success("Schedule updated successfully", schedule));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
+    @GetMapping("/date-range")
+    public ResponseEntity<ApiResponse<List<Schedule>>> getByDateRange(
+            @RequestParam LocalDateTime start,
+            @RequestParam LocalDateTime end) {
+        String adminUserId = ((Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getSubject();
+        return ResponseEntity.ok(ApiResponse.success(scheduleService.getSchedulesByDateRange(adminUserId, start, end)));
     }
 
-    @PatchMapping("/{id}/toggle-status")
-    public ResponseEntity<ApiResponse<Schedule>> toggleScheduleStatus(@PathVariable Long id, HttpServletRequest request) {
-        try {
-            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            String adminUserId = principal.getSubject();
-            Schedule schedule = scheduleService.toggleScheduleStatus(id, adminUserId);
-            return ResponseEntity.ok(ApiResponse.success("Schedule status updated", schedule));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
+    // ============= Optional Actions =============
+    @PatchMapping("/{id}/toggle")
+    public ResponseEntity<ApiResponse<Schedule>> toggle(@PathVariable Long id) {
+        String adminUserId = ((Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getSubject();
+        return ResponseEntity.ok(ApiResponse.success("Status updated", scheduleService.toggleScheduleStatus(id, adminUserId)));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<String>> deleteSchedule(@PathVariable Long id, HttpServletRequest request) {
-        try {
-            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            String adminUserId = principal.getSubject();
-            scheduleService.deleteSchedule(id, adminUserId);
-            return ResponseEntity.ok(ApiResponse.success("Schedule deleted successfully", "Schedule deleted"));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
+    public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id) {
+        String adminUserId = ((Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getSubject();
+        scheduleService.deleteSchedule(id, adminUserId);
+        return ResponseEntity.ok(ApiResponse.success("Deleted", "OK"));
     }
 }

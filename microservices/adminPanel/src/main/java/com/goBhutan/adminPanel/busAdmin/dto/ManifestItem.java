@@ -1,18 +1,17 @@
 package com.goBhutan.adminPanel.busAdmin.dto;
 
-import com.goBhutan.adminPanel.busAdmin.enums.SeatType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
-
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class SeatDetailsDTO {
+public class ManifestItem {
     private Integer seatNumber;
     private String seatLabel;
-    private SeatType seatType;
-    private BigDecimal fare;
+    private String cid;
+    private String mobile;
+    private String email;
+    private String status;
 }

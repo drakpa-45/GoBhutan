@@ -1,9 +1,13 @@
 package com.goBhutan.adminPanel.busAdmin.repository;
 
 import com.goBhutan.adminPanel.busAdmin.entity.Bus;
-import com.goBhutan.adminPanel.busAdmin.entity.Route;
+import com.goBhutan.adminPanel.busAdmin.entity.BusRoute;
 import com.goBhutan.adminPanel.busAdmin.entity.Schedule;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -19,5 +23,9 @@ public interface BusScheduleRepository extends JpaRepository<Schedule, Long> {
     Optional<Schedule> findByIdAndBus_AdminUserId(Long scheduleId, String adminUserId);
     List<Schedule> findByBus_AdminUserIdAndDepartureTimeBetween(String adminUserId, LocalDateTime start, LocalDateTime end);
 
-    boolean existsByBusAndRouteAndDepartureTimeBetween(Bus bus, Route route, LocalDateTime localDateTime, LocalDateTime localDateTime1);
+    boolean existsByBusAndRouteAndDepartureTime(Bus bus, BusRoute route, LocalDateTime departureTime);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Schedule s WHERE s.id = :id")
+    Schedule lockSchedule(@Param("id") Long id);
 }
