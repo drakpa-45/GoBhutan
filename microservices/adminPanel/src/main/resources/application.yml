@@ -1,12 +1,18 @@
 # Server Configuration
 server:
   port: 8085
+  servlet:
+    context-path: /boot
 
 spring:
   datasource: # Database Configuration
-    url: jdbc:mysql://localhost:3306/goBhutan?useSSL=false&allowPublicKeyRetrieval=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    username: root
-    password: root
+    #url: jdbc:mysql://68.178.160.243:3306/goBhutan?useSSL=false&allowPublicKeyRetrieval=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    #username: gobhutan
+    #password: tmLgEP!l$7R6gMG@
+    #driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://68.178.160.243:3306/gobhutan?useSSL=false&allowPublicKeyRetrieval=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: gobhutan
+    password: tmLgEP!l$7R6gMG@
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
@@ -20,7 +26,8 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8084/realms/Go-Bhutan  # ? Keycloak realm issuer
+          #issuer-uri: http://68.178.160.243:8084/realms/Go-Bhutan  # ? Keycloak realm issuer
+          issuer-uri: https://gobhutan.site/realms/Go-Bhutan  # ? Keycloak realm issuer
 
 # Multiple client configs
 app:
@@ -32,11 +39,13 @@ app:
             resource-id: hotel-admin-rest-api    # ? must match Keycloak client-id that has roles
             principle-attribute: preferred_username   # JWT claim to use as principal username
       keycloak: # Keycloak Admin Client (for backend management)
-        serverUrl: http://localhost:8084  # Keycloak server URL
+        #serverUrl: http://localhost:8084  # Keycloak server URL
+        serverUrl: https://gobhutan.site/api  # Keycloak server URL
         realm: Go-Bhutan # Keycloak realm
         admin:
           clientId: hotel-admin-client
-          clientSecret: QunAYZb7yPSV3hUi77cEvzQobDbHRbyO
+          #clientSecret: QunAYZb7yPSV3hUi77cEvzQobDbHRbyO
+          clientSecret: jdLpwvzOUWeQTkWffWSUmQnFnTsyNTSa
     theater:
       jwt: # JWT Role Converter
         auth:
@@ -44,11 +53,13 @@ app:
             resource-id: theater-admin-rest-api    # ? must match Keycloak client-id that has roles
             principle-attribute: preferred_username   # JWT claim to use as principal username
       keycloak: # Keycloak Admin Client (for backend management)
-        serverUrl: http://localhost:8084  # Keycloak server URL
+       # serverUrl: http://localhost:8084  # Keycloak server URL
+        serverUrl: https://gobhutan.site/api
         realm: Go-Bhutan # Keycloak realm
         admin:
           clientId: theater-admin-client
-          clientSecret: d7zknakWJgDEOIb5gvQNQ64cS97G14cT
+          #clientSecret: d7zknakWJgDEOIb5gvQNQ64cS97G14cT
+          clientSecret: PH6xReyj2Ip329p1RwRmgbcebi4kgjN0
     bus:
       jwt:
         auth:
@@ -56,11 +67,13 @@ app:
             resource-id: bus-admin-rest-api
             principle-attribute: preferred_username
       keycloak:
-        serverUrl: http://localhost:8084  # Keycloak server URL
+        #serverUrl: http://localhost:8084  # Keycloak server URL
+        serverUrl: https://gobhutan.site/api
         realm: Go-Bhutan # Keycloak realm
         admin:
           clientId: bus-admin-client
-          clientSecret: YGVuF6q8Ce0QsDQWTSGe8J8I5489P1tE
+         # clientSecret: YGVuF6q8Ce0QsDQWTSGe8J8I5489P1tE
+          clientSecret: nVScjDVTJbAMNcuOJuqVpsOYbUl53WF4
 
 # logging
 logging:

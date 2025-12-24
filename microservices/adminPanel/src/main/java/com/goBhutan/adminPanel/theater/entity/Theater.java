@@ -4,12 +4,14 @@ import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.hibernate.annotations.GenericGenerator;
 
 @Entity
 @Table(name = "ttbl_mvth_theaters")
 public class Theater {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(generator = "uuid2")
+    @GenericGenerator(name = "uuid2", strategy = "org.hibernate.id.UUIDGenerator")
     @Column(name = "id", updatable = false, nullable = false, unique = true)
     private String id;
 
@@ -70,4 +72,3 @@ public class Theater {
         }
     }
 }
-

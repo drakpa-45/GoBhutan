@@ -82,14 +82,10 @@ public class SecurityConfig {
 						// Temporarily allow all (you can tighten later)
 						.requestMatchers("/**").permitAll()
 						// Any other endpoint requires auth
-						.anyRequest().authenticated()
-				)
+						.anyRequest().authenticated())
 				.oauth2ResourceServer(oauth2 -> oauth2
-						.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthConverter))
-				)
-				.sessionManagement(session ->
-						session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-				);
+						.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthConverter)))
+				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
 		return http.build();
 	}
@@ -98,7 +94,10 @@ public class SecurityConfig {
 	@Bean
 	public CorsConfigurationSource corsConfigurationSource() {
 		CorsConfiguration config = new CorsConfiguration();
-		config.setAllowedOrigins(List.of( "http://localhost:5173,http://68.178.160.243,https://go-bhutan-admin.vercel.app"));
+		config.setAllowedOrigins(List.of(
+				"http://localhost:5173",
+				"http://68.178.160.243",
+				"https://go-bhutan-admin.vercel.app"));
 		config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
 		config.setAllowedHeaders(List.of("*"));
 		config.setAllowCredentials(true);

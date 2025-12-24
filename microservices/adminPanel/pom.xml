@@ -16,6 +16,7 @@
 	<groupId>com.goBhutan</groupId>
 	<artifactId>adminPanel</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
+	<packaging>war</packaging>
 	<name>adminPanel</name>
 	<description>Spring Boot REST API project for Go-Bhutan admin</description>
 
@@ -29,6 +30,13 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+
+		<!-- WAR deployment to external servlet container -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-tomcat</artifactId>
+			<scope>provided</scope>
 		</dependency>
 
 		<!-- JPA -->
@@ -132,9 +140,6 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-websocket</artifactId>
 		</dependency>
-
-
-
 
 	</dependencies>
 
