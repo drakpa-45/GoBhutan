@@ -1,15 +1,18 @@
 # Server Configuration
 server:
   port: 8085
+  servlet:
+    context-path: /boot
 
 spring:
   datasource: # Database Configuration
-    url: jdbc:mysql://localhost:3306/goBhutan?useSSL=false&allowPublicKeyRetrieval=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    username: root
-    password: root
-   # url: jdbc:mysql://68.178.160.243:3306/gobhutan?useSSL=false&allowPublicKeyRetrieval=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
-   # username: gobhutan
-   # password: tmLgEP!l$7R6gMG@
+    #url: jdbc:mysql://68.178.160.243:3306/goBhutan?useSSL=false&allowPublicKeyRetrieval=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    #username: gobhutan
+    #password: tmLgEP!l$7R6gMG@
+    #driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://68.178.160.243:3306/gobhutan?useSSL=false&allowPublicKeyRetrieval=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: gobhutan
+    password: tmLgEP!l$7R6gMG@
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:

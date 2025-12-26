@@ -82,14 +82,10 @@ public class SecurityConfig {
 						// Temporarily allow all (you can tighten later)
 						.requestMatchers("/**").permitAll()
 						// Any other endpoint requires auth
-						.anyRequest().authenticated()
-				)
+						.anyRequest().authenticated())
 				.oauth2ResourceServer(oauth2 -> oauth2
-						.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthConverter))
-				)
-				.sessionManagement(session ->
-						session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-				);
+						.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthConverter)))
+				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
 		return http.build();
 	}
