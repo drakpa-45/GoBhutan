@@ -45,7 +45,6 @@ public class SecurityConfig {
 
 		return http.build();
 	}
-
 	// バ. Define global CORS policy
 	@Bean
 	public CorsConfigurationSource corsConfigurationSource() {
@@ -62,5 +61,25 @@ public class SecurityConfig {
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		source.registerCorsConfiguration("/**", config);
 		return source;
+	}*/
+	@Bean
+	public CorsConfigurationSource corsConfigurationSource() {
+		CorsConfiguration config = new CorsConfiguration();
+
+		config.setAllowedOrigins(List.of(
+				"http://localhost:5173",
+				"https://gobhutan.site",
+				"http://68.178.160.243"
+		));
+
+		config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+		config.setAllowedHeaders(List.of("*"));
+		config.setAllowCredentials(true);
+		config.setMaxAge(3600L);
+
+		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+		source.registerCorsConfiguration("/**", config);
+		return source;
 	}
+
 }

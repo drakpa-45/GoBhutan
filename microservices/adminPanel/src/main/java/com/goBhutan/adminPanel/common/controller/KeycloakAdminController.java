@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -159,153 +160,6 @@ public class KeycloakAdminController {
         }
     }
 
-//    @PostMapping("/signup")
-//    public ResponseEntity<ApiResponse<SignupResponseDTO>> signup(@RequestBody SignupRequestDTO req) {
-//        try {
-//            String kcId = null;
-//
-//            // 🔹 Loop through each client requested in signup
-//            for (String client : req.getClients()) {
-//
-//                // Map logical client names to actual Keycloak client IDs
-//                String actualClientId = switch (client.toLowerCase()) {
-//                    case "hotel" -> "hotel-admin-client";
-//                    case "bus"   -> "bus-admin-client";
-//                    default -> null;
-//                };
-//                if (actualClientId == null) {
-//                    System.err.println("⚠️ Unknown client: " + client);
-//                    continue;
-//                }
-//
-//                KeycloakConfig config = getKeycloakConfig(client); // use logical name for config mapping
-//                String adminToken = tokenService.getAdminToken(client);
-//
-//                HttpHeaders headers = new HttpHeaders();
-//                headers.setBearerAuth(adminToken);
-//                headers.setContentType(MediaType.APPLICATION_JSON);
-//
-//                // 1️⃣ Search user in Keycloak
-//                String searchUrl = String.format("%s/admin/realms/%s/users?username=%s",
-//                        config.getServerUrl(), config.getRealm(), req.getUsername());
-//                HttpEntity<Void> searchEntity = new HttpEntity<>(headers);
-//                ResponseEntity<Map[]> searchResp = rest.exchange(searchUrl, HttpMethod.GET, searchEntity, Map[].class);
-//
-//                if (searchResp.getBody() != null && searchResp.getBody().length > 0) {
-//                    kcId = (String) searchResp.getBody()[0].get("id");
-//                } else {
-//                    // 2️⃣ Build Keycloak user payload
-//                    Map<String, Object> payload = new HashMap<>();
-//                    payload.put("username", req.getUsername());
-//                    payload.put("email", req.getEmail());
-//                    payload.put("firstName", req.getFirstName());
-//                    payload.put("lastName", req.getLastName());
-//                    payload.put("enabled", true);
-//
-//                    Map<String, Object> cred = new HashMap<>();
-//                    cred.put("type", "password");
-//                    cred.put("value", req.getPassword());
-//                    cred.put("temporary", false);
-//                    payload.put("credentials", List.of(cred));
-//
-//                    HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
-//                    String createUrl = String.format("%s/admin/realms/%s/users", config.getServerUrl(), config.getRealm());
-//
-//                    ResponseEntity<String> resp = rest.exchange(createUrl, HttpMethod.POST, entity, String.class);
-//                    if (!resp.getStatusCode().is2xxSuccessful() && resp.getStatusCodeValue() != 201) {
-//                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-//                                .body(ApiResponse.error("Failed to create user in Keycloak for client: " + client));
-//                    }
-//
-//                    // Re-fetch user to get kcId
-//                    searchResp = rest.exchange(searchUrl, HttpMethod.GET, searchEntity, Map[].class);
-//                    if (searchResp.getBody() != null && searchResp.getBody().length > 0) {
-//                        kcId = (String) searchResp.getBody()[0].get("id");
-//                    }
-//                }
-//
-//                // 3️⃣ Save user in DB (only once)
-//                appUserService.createUserIfNotExists(
-//                        req.getUsername(),
-//                        req.getEmail(),
-//                        req.getFirstName(),
-//                        req.getLastName(),
-//                        req.getPassword(),
-//                        kcId
-//                );
-//
-//                // 4️⃣ Assign client in DB
-//                appUserService.assignClient(req.getUsername(), client);
-//
-//                // 5️⃣ Assign client-specific role in Keycloak
-//                String clientRoleName = "client_admin_" + client.toLowerCase();
-//                assignClientRoleToUser(kcId, actualClientId, clientRoleName, config, adminToken);
-//            }
-//
-//            // 🔹 Fetch DB user for response
-//            AppUser dbUser = appUserService.findByUsername(req.getUsername())
-//                    .orElseThrow(() -> new RuntimeException("User not found after signup"));
-//
-//            SignupResponseDTO signupResponse = new SignupResponseDTO(
-//                    dbUser.getId(),
-//                    dbUser.getKeycloakId(),
-//                    dbUser.getUsername(),
-//                    dbUser.getEmail(),
-//                    List.copyOf(dbUser.getClients())
-//            );
-//
-//            return ResponseEntity.status(HttpStatus.CREATED)
-//                    .body(ApiResponse.success("Signup successful", signupResponse));
-//
-//        } catch (Exception e) {
-//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-//                    .body(ApiResponse.error("Signup failed due to server error: " + e.getMessage()));
-//        }
-//    }
-//
-//    /**
-//     * Assign a client role to a Keycloak user
-//     */
-//    private void assignClientRoleToUser(String kcId, String actualClientId, String roleName,
-//                                        KeycloakConfig config, String adminToken) {
-//        try {
-//            HttpHeaders headers = new HttpHeaders();
-//            headers.setBearerAuth(adminToken);
-//            headers.setContentType(MediaType.APPLICATION_JSON);
-//
-//            // 🔹 Fetch client UUID
-//            String clientUrl = String.format("%s/admin/realms/%s/clients?clientId=%s",
-//                    config.getServerUrl(), config.getRealm(), actualClientId);
-//            ResponseEntity<Map[]> clientResp = rest.exchange(clientUrl, HttpMethod.GET, new HttpEntity<>(headers), Map[].class);
-//            if (clientResp.getBody() == null || clientResp.getBody().length == 0) {
-//                System.err.println("⚠️ Client " + actualClientId + " not found");
-//                return;
-//            }
-//            String clientUuid = (String) clientResp.getBody()[0].get("id");
-//
-//            // 🔹 Fetch client role representation
-//            String roleUrl = String.format("%s/admin/realms/%s/clients/%s/roles/%s",
-//                    config.getServerUrl(), config.getRealm(), clientUuid, roleName);
-//            ResponseEntity<Map> roleResp = rest.exchange(roleUrl, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
-//            if (roleResp.getBody() == null) {
-//                System.err.println("⚠️ Role " + roleName + " not found for client " + actualClientId);
-//                return;
-//            }
-//
-//            // 🔹 Assign role to user
-//            String assignUrl = String.format("%s/admin/realms/%s/users/%s/role-mappings/clients/%s",
-//                    config.getServerUrl(), config.getRealm(), kcId, clientUuid);
-//            HttpEntity<List<Map<String, Object>>> roleEntity = new HttpEntity<>(List.of(roleResp.getBody()), headers);
-//            rest.exchange(assignUrl, HttpMethod.POST, roleEntity, Void.class);
-//
-//            System.out.println("✅ Assigned client role " + roleName + " to user " + kcId);
-//
-//        } catch (Exception ex) {
-//            System.err.println("⚠️ Error assigning client role " + roleName + ": " + ex.getMessage());
-//        }
-//    }
-//
-
     // 🔹 Signin (single login, dynamic menu)
     @PostMapping("/signin")
     public ResponseEntity<ApiResponse<Map<String, Object>>> signin(@RequestBody SigninRequestDTO req) {
@@ -411,6 +265,32 @@ public class KeycloakAdminController {
         }
     }
 
+    @PostMapping("/update-clients")
+    public ResponseEntity<ApiResponse<List<String>>> updateClients(@RequestBody UpdateClientsRequestDTO req) {
+        try {
+            // Fetch user from DB
+            AppUser user = appUserService.findByUsername(req.getUsername())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            // Assign new clients
+            for (String client : req.getClients()) {
+                if (!user.getClients().contains(client)) {
+                    appUserService.assignClient(req.getUsername(), client);
+                }
+            }
+
+            // Fetch updated user
+            AppUser updatedUser = appUserService.findByUsername(req.getUsername())
+                    .orElseThrow(() -> new RuntimeException("User not found after update"));
+
+            return ResponseEntity.ok(ApiResponse.success("Clients updated successfully",
+                    List.copyOf(updatedUser.getClients())));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to update clients: " + e.getMessage()));
+        }
+    }
 
     // 🔹 Helper method to fetch Keycloak config
     private KeycloakConfig getKeycloakConfig(String clientKey) {
