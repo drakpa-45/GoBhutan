@@ -13,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -140,6 +142,29 @@ public class TheaterService {
                 .map(TheaterMapper::toSummaryDTO)
                 .collect(Collectors.toList());
     }
+
+    /**
+     * Get all active theaters by user id
+     */
+    @Transactional(readOnly = true)
+    public List<TheaterSummaryDTO> getAllTheatersByUserId() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String userId;
+
+        if (principal instanceof Jwt jwt) {
+            userId = jwt.getSubject(); // Keycloak "sub" claim
+        } else if (principal instanceof String str) {
+            userId = str; // fallback if principal is String
+        } else {
+            throw new RuntimeException("Unsupported principal type: " + principal.getClass());
+        }
+
+        return theaterRepository.findByAdminUserId(userId).stream()
+                .map(TheaterMapper::toSummaryDTO)
+                .collect(Collectors.toList());
+    }
+
+
 
     /**
      * Get theaters by location

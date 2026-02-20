@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 @Data
@@ -28,5 +29,9 @@ public class SeatDTO {
     private Instant createdAt;
     private Instant updatedAt;
 
-    private Double basePrice;
+    private BigDecimal basePrice;
+
+    private Long seatStatusId;
+    private String seatStatusName;
+
 }

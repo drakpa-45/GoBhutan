@@ -18,7 +18,7 @@ public class SeatLayoutResponseDTO {
     private Integer blockedSeats;
     private Integer availableSeats;
     private List<RowLayout> rows;
-    private Map<String, Integer> seatClassCounts; // Count by seat class
+    private Map<String, Integer> seatClassCounts;
 
     @Data
     @NoArgsConstructor

@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -17,4 +18,7 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT t FROM Ticket t WHERE t.ticketNumber = :ticketNumber")
     Optional<Ticket> findByTicketNumberForUpdate(@Param("ticketNumber") String ticketNumber);
+
+    // In TicketRepository interface
+    List<Ticket> findByBooking_Theater_Id(Long theaterId);
 }

@@ -46,8 +46,8 @@ app:
         realm: Go-Bhutan # Keycloak realm
         admin:
           clientId: hotel-admin-client
-          #clientSecret: QunAYZb7yPSV3hUi77cEvzQobDbHRbyO
-          clientSecret: jdLpwvzOUWeQTkWffWSUmQnFnTsyNTSa
+          clientSecret: QunAYZb7yPSV3hUi77cEvzQobDbHRbyO
+          #clientSecret: jdLpwvzOUWeQTkWffWSUmQnFnTsyNTSa
     theater:
       jwt: # JWT Role Converter
         auth:

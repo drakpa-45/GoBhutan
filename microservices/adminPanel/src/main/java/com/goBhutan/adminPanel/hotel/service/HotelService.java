@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.goBhutan.adminPanel.common.config.FileUploadProperties;
 import com.goBhutan.adminPanel.common.exception.ResourceNotFoundException;
 import com.goBhutan.adminPanel.hotel.dto.AmenityDTO;
 import com.goBhutan.adminPanel.hotel.dto.HotelDTO;
@@ -36,8 +37,10 @@ public class HotelService {
 
     private HotelMapper hotelMapper;
 
-    @Value("${file.upload.directory:uploads/hotels}")
+    @Value("${file.upload.directory:/opt/uploads/}")
     private String uploadDirectory;
+
+    private FileUploadProperties fileUploadProperties;
 
 
     public List<Hotel> getAllHotels() {
@@ -164,6 +167,58 @@ public class HotelService {
 
         return savedImages;
     }
+
+    /*private List<HotelImage> saveHotelImages(Hotel hotel, List<MultipartFile> images) throws IOException {
+        // Create upload directory: uploads/hotel/{hotelId}/
+        //String uploadDirectory = fileUploadProperties.getDirectory();
+        Path uploadPath = Paths.get(uploadDirectory, "hotel", String.valueOf(hotel.getId()));
+
+        if (!Files.exists(uploadPath)) {
+            Files.createDirectories(uploadPath);
+        }
+
+        List<HotelImage> savedImages = new ArrayList<>();
+
+        for (int i = 0; i < images.size(); i++) {
+            MultipartFile file = images.get(i);
+
+            // Validate file
+            if (file.isEmpty()) {
+                continue;
+            }
+
+            // Generate unique filename
+            String originalFilename = file.getOriginalFilename();
+            String fileExtension = "";
+            if (originalFilename != null && originalFilename.contains(".")) {
+                fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
+            }
+            String uniqueFilename = UUID.randomUUID().toString() + fileExtension;
+
+            // Create file path: uploads/hotel/{hotelId}/{filename}
+            Path filePath = uploadPath.resolve(uniqueFilename);
+
+            // Save file to disk
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+            // Create relative path for database storage (e.g., "uploads/hotel/1/uuid.jpg")
+            String relativePath = uploadDirectory + "hotel/" + hotel.getId() + "/" + uniqueFilename;
+
+            // Create and save HotelImage entity
+            HotelImage hotelImage = new HotelImage();
+            hotelImage.setHotel(hotel);
+            hotelImage.setUrl(relativePath);
+            hotelImage.setTitle(originalFilename);
+            hotelImage.setCaption("");
+            hotelImage.setDisplayOrder(i);
+            hotelImage.setIsPrimary(i == 0); // First image is primary
+
+            HotelImage savedImage = imageRepository.save(hotelImage);
+            savedImages.add(savedImage);
+        }
+
+        return savedImages;
+    }*/
 
     @Transactional
     public HotelResponseDTO updateHotel(Long id, HotelDTO hotelDTO, List<MultipartFile> hotelImages, List<Long> deleteImageIds) throws IOException {

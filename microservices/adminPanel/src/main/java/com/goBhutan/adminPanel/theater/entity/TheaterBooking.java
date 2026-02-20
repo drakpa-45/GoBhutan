@@ -2,6 +2,8 @@ package com.goBhutan.adminPanel.theater.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
@@ -18,7 +20,6 @@ public class TheaterBooking {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Booking reference (human readable)
     @Column(name = "booking_ref", nullable = false, unique = true)
     private String bookingRef;
 
@@ -26,12 +27,12 @@ public class TheaterBooking {
     @JoinColumn(name = "screening_id", nullable = false)
     private Screening screening;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "booking_status", nullable = false)
-    private BookingStatus bookingStatus;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "theater_id", nullable = false)
+    private Theater theater;
 
     @Column(name = "total_amount", nullable = false)
-    private Double totalAmount;
+    private BigDecimal totalAmount;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -46,6 +47,10 @@ public class TheaterBooking {
     )
     private List<Ticket> tickets;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "booking_status_id", nullable = false)
+    private TheaterBookingStatus bookingStatus;
+
     @PrePersist
     void onCreate() {
         createdAt = Instant.now();
@@ -55,11 +60,5 @@ public class TheaterBooking {
     @PreUpdate
     void onUpdate() {
         updatedAt = Instant.now();
-    }
-
-    public enum BookingStatus {
-        CREATED,
-        CONFIRMED,
-        CANCELLED
     }
 }

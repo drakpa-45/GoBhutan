@@ -32,11 +32,11 @@ public class Screening {
 
     @Column(name = "trailer_link")
     private String trailerLink;
-
+/*
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "theater_id", nullable = false)
     @JsonBackReference
-    private Theater theater;
+    private Theater theater;*/
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hall_id", nullable = false)

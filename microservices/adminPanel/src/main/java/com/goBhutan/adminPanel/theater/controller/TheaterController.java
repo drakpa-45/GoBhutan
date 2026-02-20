@@ -167,6 +167,19 @@ public class TheaterController {
         }
     }
 
+    @GetMapping("/getAllTheatersByUserId")
+    @Operation(summary = "Get all active theaters")
+    public ResponseEntity<ApiResponse<List<TheaterSummaryDTO>>> getAllTheatersByUserId() {
+        try {
+            List<TheaterSummaryDTO> theaters = theaterService.getAllTheatersByUserId();
+            return ResponseEntity.ok(ApiResponse.success(theaters));
+
+        } catch (Exception e) {
+            log.error("Error retrieving theaters: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to retrieve theaters: " + e.getMessage()));
+        }
+    }
     @GetMapping
     @Operation(summary = "Get all active theaters")
     public ResponseEntity<ApiResponse<List<TheaterSummaryDTO>>> getAllTheaters() {

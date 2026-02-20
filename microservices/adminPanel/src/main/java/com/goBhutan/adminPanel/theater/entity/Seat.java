@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
@@ -26,7 +27,7 @@ public class Seat {
     private Integer seatNumber; // 1, 2, 3, etc.
 
     @Column(name = "base_price", nullable = false)
-    private Double basePrice;
+    private BigDecimal basePrice;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hall_id", nullable = false)

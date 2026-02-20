@@ -10,6 +10,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -45,8 +46,11 @@ public class SeatLayoutRequest {
         @NotNull(message = "Seat class ID is required")
         private Long seatClassId;
 
+        @NotNull(message = "Seat status ID is required")
+        private Long seatStatusId;
+
         @NotNull(message = "Base price is required")
         @Schema(description = "Base (NORMAL) price for seats in this row", required = true)
-        private Double basePrice;
+        private BigDecimal basePrice;
     }
 }

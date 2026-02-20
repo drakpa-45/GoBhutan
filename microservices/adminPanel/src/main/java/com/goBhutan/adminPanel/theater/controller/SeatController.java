@@ -1,9 +1,7 @@
 package com.goBhutan.adminPanel.theater.controller;
 
 import com.goBhutan.adminPanel.common.dto.ApiResponse;
-import com.goBhutan.adminPanel.theater.dto.seat.SeatBlockRequestDTO;
-import com.goBhutan.adminPanel.theater.dto.seat.SeatDTO;
-import com.goBhutan.adminPanel.theater.dto.seat.SeatLayoutResponseDTO;
+import com.goBhutan.adminPanel.theater.dto.seat.*;
 import com.goBhutan.adminPanel.theater.layout.SeatLayoutRequest;
 import com.goBhutan.adminPanel.theater.service.SeatService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,6 +23,88 @@ import java.util.List;
 public class SeatController {
 
     private final SeatService seatService;
+
+    @GetMapping("/classes")
+    @Operation(summary = "Get all seat classes")
+    public ResponseEntity<ApiResponse<List<SeatClassDTO>>> getAllSeatClasses() {
+        try {
+            List<SeatClassDTO> seatClasses = seatService.getAllSeatClasses();
+            return ResponseEntity.ok(ApiResponse.success(seatClasses));
+
+        } catch (Exception e) {
+            log.error("Error retrieving seat classes: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to retrieve seat classes: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/classes/{id}")
+    @Operation(summary = "Get seat class by ID")
+    public ResponseEntity<ApiResponse<SeatClassDTO>> getSeatClassById(
+            @PathVariable Long id
+    ) {
+        try {
+            SeatClassDTO seatClass = seatService.getSeatClassById(id);
+            return ResponseEntity.ok(ApiResponse.success(seatClass));
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
+
+        } catch (Exception e) {
+            log.error("Error retrieving seat class: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to retrieve seat class: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/statuses")
+    @Operation(summary = "Get all seat statuses")
+    public ResponseEntity<ApiResponse<List<SeatStatusDTO>>> getAllSeatStatuses() {
+        try {
+            List<SeatStatusDTO> seatStatuses = seatService.getAllSeatStatuses();
+            return ResponseEntity.ok(ApiResponse.success(seatStatuses));
+
+        } catch (Exception e) {
+            log.error("Error retrieving seat statuses: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to retrieve seat statuses: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/statuses/{id}")
+    @Operation(summary = "Get seat status by ID")
+    public ResponseEntity<ApiResponse<SeatStatusDTO>> getSeatStatusById(
+            @PathVariable Long id
+    ) {
+        try {
+            SeatStatusDTO seatStatus = seatService.getSeatStatusById(id);
+            return ResponseEntity.ok(ApiResponse.success(seatStatus));
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
+
+        } catch (Exception e) {
+            log.error("Error retrieving seat status: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to retrieve seat status: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/statuses/active")
+    @Operation(summary = "Get all active seat statuses")
+    public ResponseEntity<ApiResponse<List<SeatStatusDTO>>> getActiveSeatStatuses() {
+        try {
+            List<SeatStatusDTO> seatStatuses = seatService.getActiveSeatStatuses();
+            return ResponseEntity.ok(ApiResponse.success(seatStatuses));
+
+        } catch (Exception e) {
+            log.error("Error retrieving active seat statuses: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to retrieve active seat statuses: " + e.getMessage()));
+        }
+    }
 
     @PostMapping("/configure")
     @Operation(summary = "Configure/regenerate seat layout for a hall")

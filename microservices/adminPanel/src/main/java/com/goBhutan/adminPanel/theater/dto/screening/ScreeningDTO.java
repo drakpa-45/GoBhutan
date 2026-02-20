@@ -17,7 +17,6 @@ public class ScreeningDTO {
     private LocalDate screeningDate;
     private LocalTime startTime;
     private String trailerLink;
-    private Long theaterId;
     private String theaterName;
     private Long hallId;
     private String hallName;

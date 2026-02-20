@@ -1,16 +1,16 @@
 package com.goBhutan.adminPanel.theater.service;
 
-import com.goBhutan.adminPanel.theater.dto.seat.SeatBlockRequestDTO;
-import com.goBhutan.adminPanel.theater.dto.seat.SeatDTO;
-import com.goBhutan.adminPanel.theater.dto.seat.SeatLayoutResponseDTO;
+import com.goBhutan.adminPanel.theater.dto.seat.*;
 import com.goBhutan.adminPanel.theater.entity.Hall;
 import com.goBhutan.adminPanel.theater.entity.Seat;
 import com.goBhutan.adminPanel.theater.entity.SeatClass;
+import com.goBhutan.adminPanel.theater.entity.SeatStatus;
 import com.goBhutan.adminPanel.theater.layout.SeatLayoutRequest;
 import com.goBhutan.adminPanel.theater.mapper.SeatMapper;
 import com.goBhutan.adminPanel.theater.repository.HallRepository;
 import com.goBhutan.adminPanel.theater.repository.SeatClassRepository;
 import com.goBhutan.adminPanel.theater.repository.SeatRepository;
+import com.goBhutan.adminPanel.theater.repository.SeatStatusRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,10 +29,63 @@ public class SeatService {
     private final SeatRepository seatRepository;
     private final HallRepository hallRepository;
     private final SeatClassRepository seatClassRepository;
+    private final SeatStatusRepository seatStatusRepository;
+
+    @Transactional
+    public List<SeatClassDTO> getAllSeatClasses() {
+        return seatClassRepository.findAll().stream()
+                .map(this::mapToSeatClassDTO)
+                .toList();
+    }
+    @Transactional
+    public SeatClassDTO getSeatClassById(Long id) {
+        SeatClass seatClass = seatClassRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Seat class not found with id: " + id));
+        return mapToSeatClassDTO(seatClass);
+    }
+
+    private SeatClassDTO mapToSeatClassDTO(SeatClass seatClass) {
+        SeatClassDTO dto = new SeatClassDTO();
+        dto.setId(seatClass.getId());
+        dto.setName(seatClass.getName());
+        dto.setDescription(seatClass.getDescription());
+        dto.setDefaultBasePrice(seatClass.getDefaultBasePrice());
+        return dto;
+    }
+
+    public List<SeatStatusDTO> getAllSeatStatuses() {
+        return seatStatusRepository.findAll().stream()
+                .map(this::mapToSeatStatusDTO)
+                .toList();
+    }
+
+    public SeatStatusDTO getSeatStatusById(Long id) {
+        SeatStatus seatStatus = seatStatusRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Seat status not found with id: " + id));
+        return mapToSeatStatusDTO(seatStatus);
+    }
+
+    public List<SeatStatusDTO> getActiveSeatStatuses() {
+        return seatStatusRepository.findByIsActive(true).stream()
+                .map(this::mapToSeatStatusDTO)
+                .toList();
+    }
+
+    private SeatStatusDTO mapToSeatStatusDTO(SeatStatus seatStatus) {
+        SeatStatusDTO dto = new SeatStatusDTO();
+        dto.setId(seatStatus.getId());
+        dto.setStatusName(seatStatus.getStatusName());
+        dto.setDescription(seatStatus.getDescription());
+        dto.setIsActive(seatStatus.getIsActive());
+        dto.setCreatedAt(seatStatus.getCreatedAt());
+        dto.setUpdatedAt(seatStatus.getUpdatedAt());
+        return dto;
+    }
 
     /**
      * Create / reset seat layout for a hall
      */
+    @Transactional
     public SeatLayoutResponseDTO configureSeats(SeatLayoutRequest request) {
         log.info("Configuring seats for hall ID: {}", request.getHallId());
 
@@ -45,6 +98,11 @@ public class SeatService {
             throw new IllegalArgumentException("Cannot configure seats for inactive hall");
         }
 
+        // Get default AVAILABLE status
+        SeatStatus availableStatus = seatStatusRepository.findByStatusNameIgnoreCase("AVAILABLE")
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Default seat status 'AVAILABLE' not found. Please initialize seat statuses first."));
+
         // Validate no duplicate row names
         Set<String> rowNames = new HashSet<>();
         for (SeatLayoutRequest.RowLayout row : request.getRows()) {
@@ -55,8 +113,8 @@ public class SeatService {
 
         // Delete existing seats
         log.info("Removing existing {} seats from hall {}", hall.getSeats().size(), hall.getId());
-        seatRepository.deleteByHallId(hall.getId());
-        hall.getSeats().clear();
+      //  seatRepository.deleteByHallId(hall.getId());
+      //  hall.getSeats().clear();
 
         int totalSeats = 0;
 
@@ -73,8 +131,9 @@ public class SeatService {
                 Seat seat = new Seat();
                 seat.setRowName(row.getRowName().toUpperCase());
                 seat.setSeatNumber(i);
-                seat.setSeatClass(seatClass);   // Set dynamic seat class
-                seat.setBasePrice(row.getBasePrice()); // Admin-defined base price
+                seat.setSeatClass(seatClass);
+                seat.setStatus(availableStatus);
+                seat.setBasePrice(row.getBasePrice());
                 seat.setIsBlocked(false);
                 seat.setCreatedAt(Instant.now());
                 seat.setUpdatedAt(Instant.now());
@@ -93,7 +152,6 @@ public class SeatService {
 
         return getSeatLayoutByHall(savedHall.getId());
     }
-
 
     /**
      * Get seat layout for a hall

@@ -1,5 +1,6 @@
 package com.goBhutan.adminPanel.hotel.service;
 
+import com.goBhutan.adminPanel.common.config.FileUploadProperties;
 import com.goBhutan.adminPanel.common.exception.ResourceNotFoundException;
 import com.goBhutan.adminPanel.hotel.dto.RoomDTO;
 import com.goBhutan.adminPanel.hotel.dto.RoomResponseDTO;
@@ -42,8 +43,10 @@ public class RoomService {
     @Autowired
     private RoomMapper roomMapper;
 
-    @Value("${file.upload-dir:uploads/rooms}")
+    @Value("${file.upload-dir:/opt/uploads/}")
     private String uploadDirectory;
+
+    private FileUploadProperties fileUploadProperties;
 
     @Transactional
     public RoomResponseDTO createRoom(RoomDTO roomDTO, List<MultipartFile> roomImages) throws IOException {
@@ -257,6 +260,57 @@ public class RoomService {
 
         return savedImages;
     }
+
+    /*private List<HotelImage> saveRoomImages(Room room, List<MultipartFile> images) throws IOException {
+        // Create upload directory: uploads/room/{roomId}/
+       // String uploadDirectory = fileUploadProperties.getDirectory();
+        Path uploadPath = Paths.get(uploadDirectory, "room", String.valueOf(room.getId()));
+
+        if (!Files.exists(uploadPath)) {
+            Files.createDirectories(uploadPath);
+        }
+
+        List<HotelImage> savedImages = new ArrayList<>();
+
+        for (int i = 0; i < images.size(); i++) {
+            MultipartFile file = images.get(i);
+
+            // Validate file
+            if (file.isEmpty()) {
+                continue;
+            }
+
+            // Generate unique filename
+            String originalFilename = file.getOriginalFilename();
+            String fileExtension = "";
+            if (originalFilename != null && originalFilename.contains(".")) {
+                fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
+            }
+            String uniqueFilename = UUID.randomUUID().toString() + fileExtension;
+
+            // Create file path: uploads/room/{roomId}/{filename}
+            Path filePath = uploadPath.resolve(uniqueFilename);
+
+            // Save file to disk
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+            // Create relative path for database storage (e.g., "uploads/room/1/uuid.jpg")
+            String relativePath = uploadDirectory + "room/" + room.getId() + "/" + uniqueFilename;
+
+            // Create and save HotelImage entity
+            HotelImage roomImage = new HotelImage();
+            roomImage.setRoom(room);
+            roomImage.setUrl(relativePath);
+            roomImage.setTitle(originalFilename);
+            roomImage.setCaption("");
+            roomImage.setDisplayOrder(i);
+            roomImage.setIsPrimary(i == 0); // First image is primary
+
+            HotelImage savedImage = imageRepository.save(roomImage);
+            savedImages.add(savedImage);
+        }
+        return savedImages;
+    }*/
 
     private void deleteRoomImages(Room room, List<Long> imageIds) {
         for (Long imageId : imageIds) {

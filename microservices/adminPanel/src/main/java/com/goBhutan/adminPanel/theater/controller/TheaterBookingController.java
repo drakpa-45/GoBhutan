@@ -23,6 +23,14 @@ public class TheaterBookingController {
         return ResponseEntity.ok(ApiResponse.success("Booking successful", tickets));
     }
 
+    // FETCH BOOKINGS BY THEATER ID
+    @GetMapping("/fetchAllbooking/{theaterId}")
+    public ResponseEntity<ApiResponse<List<TicketResponseDTO>>> getBookingsByTheater(
+            @PathVariable Long theaterId) {
+        List<TicketResponseDTO> bookings = bookingService.getBookingsByTheaterId(theaterId);
+        return ResponseEntity.ok(ApiResponse.success("Bookings retrieved successfully", bookings));
+    }
+
     // CANCEL SINGLE TICKET
     @PostMapping("/cancel/ticket/{ticketNumber}")
     public ResponseEntity<ApiResponse<Void>> cancelTicket(

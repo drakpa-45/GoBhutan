@@ -24,8 +24,8 @@ public class ScreeningService {
     private final HallRepository hallRepository;
 
     public ScreeningDTO createScreening(ScreeningDTO dto) {
-        Theater theater = theaterRepository.findById(dto.getTheaterId())
-                .orElseThrow(() -> new IllegalArgumentException("Theater not found"));
+       /* Theater theater = theaterRepository.findById(dto.getTheaterId())
+                .orElseThrow(() -> new IllegalArgumentException("Theater not found"));*/
         Hall hall = hallRepository.findById(dto.getHallId())
                 .orElseThrow(() -> new IllegalArgumentException("Hall not found"));
 
@@ -34,7 +34,7 @@ public class ScreeningService {
         screening.setScreeningDate(dto.getScreeningDate());
         screening.setStartTime(dto.getStartTime());
         screening.setTrailerLink(dto.getTrailerLink());
-        screening.setTheater(theater);
+       // screening.setTheater(theater);
         screening.setHall(hall);
         screening.setIsActive(true);
 
@@ -49,7 +49,7 @@ public class ScreeningService {
     }
 
     public List<ScreeningDTO> getScreeningsByHall(Long hallId) {
-        return screeningRepository.findByTheaterIdAndHallIdOrderByScreeningDateAscStartTimeAsc(null, hallId)
+        return screeningRepository.findByHallIdOrderByScreeningDateAscStartTimeAsc(hallId)
                 .stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
@@ -77,8 +77,8 @@ public class ScreeningService {
         dto.setScreeningDate(screening.getScreeningDate());
         dto.setStartTime(screening.getStartTime());
         dto.setTrailerLink(screening.getTrailerLink());
-        dto.setTheaterId(screening.getTheater().getId());
-        dto.setTheaterName(screening.getTheater().getName());
+    //    dto.setTheaterId(screening.getTheater().getId());
+       // dto.setTheaterName(screening.getTheater().getName());
         dto.setHallId(screening.getHall().getId());
         dto.setHallName(screening.getHall().getName());
         dto.setIsActive(screening.getIsActive());

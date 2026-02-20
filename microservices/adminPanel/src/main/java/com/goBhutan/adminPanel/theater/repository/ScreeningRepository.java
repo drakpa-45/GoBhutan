@@ -10,7 +10,7 @@ import java.util.List;
 @Repository
 public interface ScreeningRepository extends JpaRepository<Screening, Long> {
 
-    List<Screening> findByTheaterIdAndHallIdOrderByScreeningDateAscStartTimeAsc(Long theaterId, Long hallId);
+    List<Screening> findByHallIdOrderByScreeningDateAscStartTimeAsc(Long hallId);
 
     List<Screening> findByScreeningDate(LocalDate date);
 
