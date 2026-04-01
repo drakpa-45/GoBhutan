@@ -15,3 +15,5 @@ README.md
 /docker_image/*/*.*.war
 .idea/
 /uploads/
+/backup/
+
