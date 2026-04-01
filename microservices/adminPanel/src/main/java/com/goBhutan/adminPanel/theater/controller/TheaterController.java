@@ -1,227 +1,244 @@
 package com.goBhutan.adminPanel.theater.controller;
 
-import com.goBhutan.adminPanel.theater.dto.*;
+import com.goBhutan.adminPanel.common.dto.ApiResponse;
+import com.goBhutan.adminPanel.theater.dto.theater.TheaterDTO;
+import com.goBhutan.adminPanel.theater.dto.theater.TheaterResponseDTO;
+import com.goBhutan.adminPanel.theater.dto.theater.TheaterSummaryDTO;
+import com.goBhutan.adminPanel.theater.dto.theater.TheaterUpdateDTO;
 import com.goBhutan.adminPanel.theater.service.TheaterService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
-import jakarta.validation.Valid;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/admin/theaters")
-@PreAuthorize("hasRole('ADMIN') or hasRole('THEATER_OWNER')")
+@RequestMapping("/api/theaters")
+@RequiredArgsConstructor
+@Slf4j
+@Tag(name = "Theater Management", description = "APIs for managing theaters")
 public class TheaterController {
 
     private final TheaterService theaterService;
 
-    public TheaterController(TheaterService theaterService) {
-        this.theaterService = theaterService;
-    }
-
-    /**
-     * Get all theaters with optional filtering
-     * Admin: sees all theaters
-     * Theater Owner: sees only their theaters
-     */
-    @GetMapping
-    public ResponseEntity<Page<TheaterDTO>> getAllTheaters(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String locationId,
-            @RequestParam(required = false) String dzongkhag,
-            @RequestParam(required = false) String search,
-            Authentication authentication) {
-
-        Pageable pageable = PageRequest.of(page, size);
-        Page<TheaterDTO> theaters;
-
-        // If user has THEATER_OWNER role (and not ADMIN), only show their theaters
-        if (hasRole(authentication, "THEATER_OWNER") && !hasRole(authentication, "ADMIN")) {
-            String userId = getCurrentUserId(authentication);
-            theaters = theaterService.getTheatersByOwner(userId, pageable);
-        } else if (locationId != null) {
-            theaters = theaterService.getTheatersByLocation(locationId, pageable);
-        } else if (dzongkhag != null) {
-            theaters = theaterService.getTheatersByDzongkhag(dzongkhag, pageable);
-        } else if (search != null && !search.trim().isEmpty()) {
-            theaters = theaterService.searchTheaters(search, pageable);
-        } else {
-            theaters = theaterService.getAllTheaters(pageable);
-        }
-
-        return ResponseEntity.ok(theaters);
-    }
-
-    /**
-     * Get theaters list (no pagination) - useful for dropdowns
-     */
-    @GetMapping("/list")
-    public ResponseEntity<List<TheaterDTO>> getTheatersList(
-            @RequestParam(required = false) String locationId,
-            Authentication authentication) {
-
-        List<TheaterDTO> theaters;
-
-        if (hasRole(authentication, "THEATER_OWNER") && !hasRole(authentication, "ADMIN")) {
-            String userId = getCurrentUserId(authentication);
-            theaters = theaterService.getTheatersByOwnerList(userId);
-        } else if (locationId != null) {
-            theaters = theaterService.getTheatersByLocationList(locationId);
-        } else {
-            theaters = theaterService.getAllTheatersList();
-        }
-
-        return ResponseEntity.ok(theaters);
-    }
-
-    /**
-     * Get theater by ID with ownership validation
-     */
-    @GetMapping("/{id}")
-    public ResponseEntity<TheaterDTO> getTheaterById(@PathVariable String id, Authentication authentication) {
-        TheaterDTO theater = theaterService.getTheaterById(id);
-
-        // Check if theater owner is accessing their own theater
-        if (hasRole(authentication, "THEATER_OWNER") && !hasRole(authentication, "ADMIN")) {
-            String userId = getCurrentUserId(authentication);
-            if (!theater.getOwnerId().equals(userId)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-            }
-        }
-
-        return ResponseEntity.ok(theater);
-    }
-
-    /**
-     * Get theater details with halls included
-     */
-    @GetMapping("/{id}/details")
-    public ResponseEntity<TheaterDTO> getTheaterDetails(@PathVariable String id, Authentication authentication) {
-        TheaterDTO theater = theaterService.getTheaterWithHalls(id);
-
-        // Check ownership for theater owners
-        if (hasRole(authentication, "THEATER_OWNER") && !hasRole(authentication, "ADMIN")) {
-            String userId = getCurrentUserId(authentication);
-            if (!theater.getOwnerId().equals(userId)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-            }
-        }
-
-        return ResponseEntity.ok(theater);
-    }
-
-    /**
-     * Get theater statistics (total halls, seats, screenings, etc.)
-     */
-    @GetMapping("/{id}/stats")
-    public ResponseEntity<TheaterStatsDTO> getTheaterStats(@PathVariable String id, Authentication authentication) {
-        // Check ownership for theater owners
-        if (hasRole(authentication, "THEATER_OWNER") && !hasRole(authentication, "ADMIN")) {
-            TheaterDTO theater = theaterService.getTheaterById(id);
-            String userId = getCurrentUserId(authentication);
-            if (!theater.getOwnerId().equals(userId)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-            }
-        }
-
-        TheaterStatsDTO stats = theaterService.getTheaterStatistics(id);
-        return ResponseEntity.ok(stats);
-    }
-
-    /**
-     * Create new theater
-     * Current authenticated user becomes the owner
-     */
     @PostMapping
-    public ResponseEntity<TheaterDTO> createTheater(@RequestBody @Valid TheaterCreateDTO createDTO,
-                                                    Authentication authentication) {
-        String ownerId = getCurrentUserId(authentication);
-        TheaterDTO createdTheater = theaterService.createTheater(createDTO, ownerId);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createdTheater);
-    }
+    @Operation(summary = "Create a new theater")
+    public ResponseEntity<ApiResponse<TheaterResponseDTO>> createTheater(
+            @Valid @RequestBody TheaterDTO theaterDTO
+    ) {
+        try {
+            log.info("Creating theater: {}", theaterDTO.getName());
 
-    /**
-     * Update theater with ownership validation
-     */
-    @PutMapping("/{id}")
-    public ResponseEntity<TheaterDTO> updateTheater(@PathVariable String id,
-                                                    @RequestBody @Valid TheaterCreateDTO updateDTO,
-                                                    Authentication authentication) {
-        // Check ownership for theater owners
-        if (hasRole(authentication, "THEATER_OWNER") && !hasRole(authentication, "ADMIN")) {
-            TheaterDTO existingTheater = theaterService.getTheaterById(id);
-            String userId = getCurrentUserId(authentication);
-            if (!existingTheater.getOwnerId().equals(userId)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-            }
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
+            theaterDTO.setAdminUserId(adminUserId);
+
+            TheaterResponseDTO createdTheater = theaterService.createTheater(theaterDTO);
+
+            ApiResponse<TheaterResponseDTO> response = ApiResponse.success(
+                    "Theater created successfully",
+                    createdTheater
+            );
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+
+        } catch (IllegalArgumentException e) {
+            log.error("Validation error creating theater: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Validation error: " + e.getMessage()));
+
+        } catch (Exception e) {
+            log.error("Error creating theater: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to create theater: " + e.getMessage()));
         }
-
-        TheaterDTO updatedTheater = theaterService.updateTheater(id, updateDTO);
-        return ResponseEntity.ok(updatedTheater);
     }
 
-    /**
-     * Toggle theater active status
-     */
-    @PatchMapping("/{id}/toggle-active")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<TheaterDTO> toggleTheaterActive(@PathVariable String id) {
-        TheaterDTO updatedTheater = theaterService.toggleTheaterActive(id);
-        return ResponseEntity.ok(updatedTheater);
+    @PutMapping("/{id}")
+    @Operation(summary = "Update an existing theater")
+    public ResponseEntity<ApiResponse<TheaterResponseDTO>> updateTheater(
+            @PathVariable Long id,
+            @Valid @RequestBody TheaterUpdateDTO updateDTO
+    ) {
+        try {
+            log.info("Updating theater with ID: {}", id);
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
+            updateDTO.setAdminUserId(adminUserId);
+
+            TheaterResponseDTO updatedTheater = theaterService.updateTheater(id, updateDTO);
+
+            ApiResponse<TheaterResponseDTO> response = ApiResponse.success(
+                    "Theater updated successfully",
+                    updatedTheater
+            );
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            log.error("Theater not found: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
+
+        } catch (Exception e) {
+            log.error("Error updating theater: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to update theater: " + e.getMessage()));
+        }
     }
 
-    /**
-     * Soft delete theater (Admin only)
-     */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteTheater(@PathVariable String id) {
-        theaterService.deleteTheater(id);
-        return ResponseEntity.noContent().build();
+    @Operation(summary = "Soft delete a theater")
+    public ResponseEntity<ApiResponse<Void>> deleteTheater(@PathVariable Long id) {
+        try {
+            log.info("Soft deleting theater with ID: {}", id);
+
+            theaterService.softDeleteTheater(id);
+
+            ApiResponse<Void> response = ApiResponse.success(
+                    "Theater deleted successfully",
+                    null
+            );
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            log.error("Theater not found: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
+
+        } catch (Exception e) {
+            log.error("Error deleting theater: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to delete theater: " + e.getMessage()));
+        }
     }
 
-    /**
-     * Transfer theater ownership (Admin only)
-     */
-    @PatchMapping("/{id}/transfer-ownership")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<TheaterDTO> transferOwnership(@PathVariable String id,
-                                                        @RequestParam String newOwnerId) {
-        TheaterDTO updatedTheater = theaterService.transferOwnership(id, newOwnerId);
-        return ResponseEntity.ok(updatedTheater);
+    @PatchMapping("/{id}/restore")
+    @Operation(summary = "Restore a soft deleted theater")
+    public ResponseEntity<ApiResponse<Void>> restoreTheater(@PathVariable Long id) {
+        try {
+            log.info("Restoring theater with ID: {}", id);
+
+            theaterService.restoreTheater(id);
+
+            ApiResponse<Void> response = ApiResponse.success(
+                    "Theater restored successfully",
+                    null
+            );
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to restore theater: " + e.getMessage()));
+        }
     }
 
-    /**
-     * Get my theaters (for current logged-in theater owner)
-     */
-    @GetMapping("/my-theaters")
-    @PreAuthorize("hasRole('THEATER_OWNER')")
-    public ResponseEntity<Page<TheaterDTO>> getMyTheaters(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            Authentication authentication) {
+    @GetMapping("/{id}")
+    @Operation(summary = "Get theater by ID")
+    public ResponseEntity<ApiResponse<TheaterResponseDTO>> getTheaterById(@PathVariable Long id) {
+        try {
+            TheaterResponseDTO theater = theaterService.getTheaterById(id);
+            return ResponseEntity.ok(ApiResponse.success(theater));
 
-        String userId = getCurrentUserId(authentication);
-        Pageable pageable = PageRequest.of(page, size);
-        Page<TheaterDTO> theaters = theaterService.getTheatersByOwner(userId, pageable);
-        return ResponseEntity.ok(theaters);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to retrieve theater: " + e.getMessage()));
+        }
     }
 
-    private String getCurrentUserId(Authentication authentication) {
-        JwtAuthenticationToken jwtToken = (JwtAuthenticationToken) authentication;
-        return jwtToken.getToken().getClaimAsString("sub");
+    @GetMapping("/getAllTheatersByUserId")
+    @Operation(summary = "Get all active theaters")
+    public ResponseEntity<ApiResponse<List<TheaterSummaryDTO>>> getAllTheatersByUserId() {
+        try {
+            List<TheaterSummaryDTO> theaters = theaterService.getAllTheatersByUserId();
+            return ResponseEntity.ok(ApiResponse.success(theaters));
+
+        } catch (Exception e) {
+            log.error("Error retrieving theaters: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to retrieve theaters: " + e.getMessage()));
+        }
+    }
+    @GetMapping
+    @Operation(summary = "Get all active theaters")
+    public ResponseEntity<ApiResponse<List<TheaterSummaryDTO>>> getAllTheaters() {
+        try {
+            List<TheaterSummaryDTO> theaters = theaterService.getAllActiveTheaters();
+            return ResponseEntity.ok(ApiResponse.success(theaters));
+
+        } catch (Exception e) {
+            log.error("Error retrieving theaters: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to retrieve theaters: " + e.getMessage()));
+        }
     }
 
-    private boolean hasRole(Authentication authentication, String role) {
-        return authentication.getAuthorities().stream()
-                .anyMatch(authority -> authority.getAuthority().equals("ROLE_" + role));
+    @GetMapping("/paginated")
+    @Operation(summary = "Get all theaters with pagination")
+    public ResponseEntity<ApiResponse<Page<TheaterSummaryDTO>>> getAllTheatersPaginated(
+            @PageableDefault(size = 10, sort = "name", direction = Sort.Direction.ASC) Pageable pageable
+    ) {
+        try {
+            Page<TheaterSummaryDTO> theaters = theaterService.getAllTheatersPaginated(pageable);
+            return ResponseEntity.ok(ApiResponse.success(theaters));
+
+        } catch (Exception e) {
+            log.error("Error retrieving paginated theaters: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to retrieve theaters: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/location/{locationId}")
+    @Operation(summary = "Get theaters by location")
+    public ResponseEntity<ApiResponse<List<TheaterSummaryDTO>>> getTheatersByLocation(
+            @PathVariable Long locationId
+    ) {
+        try {
+            List<TheaterSummaryDTO> theaters = theaterService.getTheatersByLocation(locationId);
+            return ResponseEntity.ok(ApiResponse.success(theaters));
+
+        } catch (Exception e) {
+            log.error("Error retrieving theaters by location: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to retrieve theaters: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/search")
+    @Operation(summary = "Search theaters by name")
+    public ResponseEntity<ApiResponse<List<TheaterSummaryDTO>>> searchTheaters(
+            @RequestParam String name
+    ) {
+        try {
+            List<TheaterSummaryDTO> theaters = theaterService.searchTheaters(name);
+            return ResponseEntity.ok(ApiResponse.success(theaters));
+
+        } catch (Exception e) {
+            log.error("Error searching theaters: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to search theaters: " + e.getMessage()));
+        }
     }
 }

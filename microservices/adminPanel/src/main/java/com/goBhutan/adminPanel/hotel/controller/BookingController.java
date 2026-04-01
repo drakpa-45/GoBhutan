@@ -35,6 +35,13 @@ public class BookingController {
         return new ApiResponse<>(true, "Booking fetched successfully", bookingService.getBooking(id));
     }
 
+    @GetMapping("/hotel/count")
+    // @PreAuthorize("hasRole('client_admin')")
+    public ApiResponse<Long> getTotalBookingCount() {
+        Long count = bookingService.getTotalBookingCountByHotel();
+        return new ApiResponse<>(true, "Total booking count fetched successfully", count);
+    }
+
     @PostMapping
    // @PreAuthorize("hasRole('client_admin')")
     public ApiResponse<Booking> createBooking(@RequestBody @Valid BookingRequestDTO bookingRequest) {

@@ -1,14 +1,24 @@
 package com.goBhutan.adminPanel.hotel.service;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.goBhutan.adminPanel.common.config.FileUploadProperties;
+import com.goBhutan.adminPanel.common.exception.ResourceNotFoundException;
+import com.goBhutan.adminPanel.hotel.dto.AmenityDTO;
+import com.goBhutan.adminPanel.hotel.dto.HotelDTO;
 import com.goBhutan.adminPanel.hotel.dto.HotelResponseDTO;
 import com.goBhutan.adminPanel.hotel.entity.*;
 import com.goBhutan.adminPanel.hotel.mapper.HotelMapper;
 import com.goBhutan.adminPanel.hotel.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -23,15 +33,14 @@ public class HotelService {
     @Autowired
     private HotelRepository hotelRepository;
     @Autowired
-    private  RoomTypeRepository roomTypeRepository;
-    @Autowired
-    private  AmenityRepository amenityRepository;
-    @Autowired
     private ImageRepository imageRepository;
-    @Autowired
-    private RoomRepository roomRepository;
-    @Autowired
-    private StorageService storageService;
+
+    private HotelMapper hotelMapper;
+
+    @Value("${file.upload.directory:/opt/uploads/}")
+    private String uploadDirectory;
+
+    private FileUploadProperties fileUploadProperties;
 
 
     public List<Hotel> getAllHotels() {
@@ -65,261 +74,241 @@ public class HotelService {
                 .orElseThrow(() -> new RuntimeException("Hotel not found"));
     }
 
-/*    public Hotel createHotel(Hotel hotel) {
+    @Transactional
+    public HotelResponseDTO createHotel(HotelDTO hotelDTO, List<MultipartFile> hotelImages) throws IOException {
+        // Create hotel entity from DTO
+        Hotel hotel = hotelMapper.toEntity(hotelDTO);
         hotel.setCreatedAt(LocalDateTime.now());
         hotel.setUpdatedAt(LocalDateTime.now());
-        // 🔹 Extract Keycloak userId from token
-        Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        String userId = principal.getSubject(); // Keycloak "sub" claim
-        hotel.setAdminUserId(userId);
-        // Set hotel reference in rooms
-        if (hotel.getRooms() != null) {
-            for (Room room : hotel.getRooms()) {
-                room.setHotel(hotel);
+        hotel.setIsActive(true);
+
+        // Handle amenities if provided
+        if (hotelDTO.getAmenities() != null && !hotelDTO.getAmenities().isEmpty()) {
+            for (AmenityDTO amenityDTO : hotelDTO.getAmenities()) {
+                Amenity amenity = new Amenity();
+                amenity.setName(amenityDTO.getName());
+                amenity.setDescription(amenityDTO.getDescription());
+                amenity.setIconClass(amenityDTO.getIconClass());
+                amenity.setCategory(amenityDTO.getCategory());
+                hotel.addAmenity(amenity); // Use helper method
             }
         }
-        return hotelRepository.save(hotel);
+
+        // Save hotel (will cascade save amenities)
+        Hotel savedHotel = hotelRepository.save(hotel);
+
+        // Handle images if provided
+        if (hotelImages != null && !hotelImages.isEmpty()) {
+            for (MultipartFile image : hotelImages) {
+                if (!image.isEmpty()) {
+                    // Save image logic here
+                    // Example: imageService.saveHotelImage(savedHotel.getId(), image);
+                    List<HotelImage> savedImages = saveHotelImages(savedHotel, hotelImages);
+                    savedHotel.setImages(savedImages);
+                }
+            }
+        }
+        // Convert to response DTO
+        return hotelMapper.toHotelResponseDTO(savedHotel);
+    }
+
+
+    private List<HotelImage> saveHotelImages(Hotel hotel, List<MultipartFile> images) throws IOException {
+        // Create upload directory if it doesn't exist
+        Path uploadPath = Paths.get(uploadDirectory);
+        if (!Files.exists(uploadPath)) {
+            Files.createDirectories(uploadPath);
+        }
+
+        List<HotelImage> savedImages = new ArrayList<>();
+
+        for (int i = 0; i < images.size(); i++) {
+            MultipartFile file = images.get(i);
+
+            // Validate file
+            if (file.isEmpty()) {
+                continue;
+            }
+
+            // Generate unique filename
+            String originalFilename = file.getOriginalFilename();
+            String fileExtension = "";
+            if (originalFilename != null && originalFilename.contains(".")) {
+                fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
+            }
+            String uniqueFilename = UUID.randomUUID().toString() + fileExtension;
+
+            // Create file path: uploads/hotels/{hotelId}/{filename}
+            Path hotelDir = uploadPath.resolve(String.valueOf(hotel.getId()));
+            if (!Files.exists(hotelDir)) {
+                Files.createDirectories(hotelDir);
+            }
+
+            Path filePath = hotelDir.resolve(uniqueFilename);
+
+            // Save file to disk
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+            // Create relative path for database storage (e.g., "uploads/hotels/1/uuid.jpg")
+            String relativePath = uploadDirectory + "/" + hotel.getId() + "/" + uniqueFilename;
+
+            // Create and save HotelImage entity
+            HotelImage hotelImage = new HotelImage();
+            hotelImage.setHotel(hotel);
+            hotelImage.setUrl(relativePath);
+            hotelImage.setTitle(originalFilename);
+            hotelImage.setCaption("");
+            hotelImage.setDisplayOrder(i);
+            hotelImage.setIsPrimary(i == 0); // First image is primary
+
+            HotelImage savedImage = imageRepository.save(hotelImage);
+            savedImages.add(savedImage);
+        }
+
+        return savedImages;
+    }
+
+    /*private List<HotelImage> saveHotelImages(Hotel hotel, List<MultipartFile> images) throws IOException {
+        // Create upload directory: uploads/hotel/{hotelId}/
+        //String uploadDirectory = fileUploadProperties.getDirectory();
+        Path uploadPath = Paths.get(uploadDirectory, "hotel", String.valueOf(hotel.getId()));
+
+        if (!Files.exists(uploadPath)) {
+            Files.createDirectories(uploadPath);
+        }
+
+        List<HotelImage> savedImages = new ArrayList<>();
+
+        for (int i = 0; i < images.size(); i++) {
+            MultipartFile file = images.get(i);
+
+            // Validate file
+            if (file.isEmpty()) {
+                continue;
+            }
+
+            // Generate unique filename
+            String originalFilename = file.getOriginalFilename();
+            String fileExtension = "";
+            if (originalFilename != null && originalFilename.contains(".")) {
+                fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
+            }
+            String uniqueFilename = UUID.randomUUID().toString() + fileExtension;
+
+            // Create file path: uploads/hotel/{hotelId}/{filename}
+            Path filePath = uploadPath.resolve(uniqueFilename);
+
+            // Save file to disk
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+            // Create relative path for database storage (e.g., "uploads/hotel/1/uuid.jpg")
+            String relativePath = uploadDirectory + "hotel/" + hotel.getId() + "/" + uniqueFilename;
+
+            // Create and save HotelImage entity
+            HotelImage hotelImage = new HotelImage();
+            hotelImage.setHotel(hotel);
+            hotelImage.setUrl(relativePath);
+            hotelImage.setTitle(originalFilename);
+            hotelImage.setCaption("");
+            hotelImage.setDisplayOrder(i);
+            hotelImage.setIsPrimary(i == 0); // First image is primary
+
+            HotelImage savedImage = imageRepository.save(hotelImage);
+            savedImages.add(savedImage);
+        }
+
+        return savedImages;
     }*/
 
-    public Hotel createHotel(Hotel hotel,
-                             List<MultipartFile> hotelImages,
-                             Map<Long, List<MultipartFile>> roomImagesMap) {
-        // 🔹 Extract logged-in user ID from Keycloak token
-        Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        hotel.setAdminUserId(jwt.getSubject());
+    @Transactional
+    public HotelResponseDTO updateHotel(Long id, HotelDTO hotelDTO, List<MultipartFile> hotelImages, List<Long> deleteImageIds) throws IOException {
+        // Find existing hotel
+        Hotel existingHotel = hotelRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Hotel not found with id: " + id));
 
-        // 🔹 Initialize timestamps
-        hotel.setCreatedAt(LocalDateTime.now());
-        hotel.setUpdatedAt(LocalDateTime.now());
+        // Update basic fields
+        existingHotel.setName(hotelDTO.getName());
+        existingHotel.setDescription(hotelDTO.getDescription());
+        existingHotel.setAddress(hotelDTO.getAddress());
+        existingHotel.setCity(hotelDTO.getCity());
+        existingHotel.setState(hotelDTO.getState());
+        existingHotel.setCountry(hotelDTO.getCountry());
+        existingHotel.setPostalCode(hotelDTO.getPostalCode());
+        existingHotel.setPhoneNumber(hotelDTO.getPhoneNumber());
+        existingHotel.setEmail(hotelDTO.getEmail());
+        existingHotel.setWebsite(hotelDTO.getWebsite());
+        existingHotel.setStarRating(hotelDTO.getStarRating());
+        existingHotel.setUpdatedAt(LocalDateTime.now());
 
-        // 🔹 Handle hotel-level amenities
-        if (hotel.getAmenities() != null && !hotel.getAmenities().isEmpty()) {
-            Set<Long> amenityIds = hotel.getAmenities().stream()
-                    .filter(a -> a.getId() != null)
-                    .map(Amenity::getId)
-                    .collect(Collectors.toSet());
+        // Update admin user ID if provided
+        if (hotelDTO.getAdminUserId() != null) {
+            existingHotel.setAdminUserId(hotelDTO.getAdminUserId());
+        }
 
-            if (!amenityIds.isEmpty()) {
-                List<Amenity> amenities = amenityRepository.findAllById(amenityIds);
-                if (amenities.size() != amenityIds.size()) {
-                    throw new RuntimeException("Some hotel amenities were not found");
+        // Update amenities - remove old ones and add new ones
+        if (hotelDTO.getAmenities() != null) {
+            // Clear existing amenities
+            existingHotel.getAmenities().clear();
+
+            // Add new amenities
+            for (AmenityDTO amenityDTO : hotelDTO.getAmenities()) {
+                if (amenityDTO.getName() == null || amenityDTO.getCategory() == null) {
+                    throw new IllegalArgumentException("Amenity name and category are required");
                 }
-                hotel.setAmenities(new HashSet<>(amenities));
+
+                Amenity amenity = new Amenity();
+                amenity.setName(amenityDTO.getName());
+                amenity.setDescription(amenityDTO.getDescription());
+                amenity.setIconClass(amenityDTO.getIconClass());
+                amenity.setCategory(amenityDTO.getCategory());
+                existingHotel.addAmenity(amenity);
             }
         }
 
-        // 🔹 Handle rooms and their details
-        if (hotel.getRooms() != null && !hotel.getRooms().isEmpty()) {
-            for (Room room : hotel.getRooms()) {
-                room.setHotel(hotel);
-
-                // Resolve room type safely
-                if (room.getRoomType() != null && room.getRoomType().getId() != null) {
-                    RoomType roomType = roomTypeRepository.findById(room.getRoomType().getId())
-                            .orElseThrow(() -> new RuntimeException(
-                                    "Room type not found: " + room.getRoomType().getId()));
-                    room.setRoomType(roomType);
-                }
-
-                // Resolve room amenities safely
-                if (room.getAmenities() != null && !room.getAmenities().isEmpty()) {
-                    Set<Long> amenityIds = room.getAmenities().stream()
-                            .filter(a -> a.getId() != null)
-                            .map(Amenity::getId)
-                            .collect(Collectors.toSet());
-
-                    if (!amenityIds.isEmpty()) {
-                        List<Amenity> amenities = amenityRepository.findAllById(amenityIds);
-                        if (amenities.size() != amenityIds.size()) {
-                            throw new RuntimeException("Some room amenities were not found");
-                        }
-                        room.setAmenities(new HashSet<>(amenities));
-                    }
-                }
-            }
+        // Delete specified images
+        if (deleteImageIds != null && !deleteImageIds.isEmpty()) {
+            deleteHotelImages(existingHotel, deleteImageIds);
         }
 
-        // 🔹 Persist hotel along with rooms and amenities (cascade = ALL)
-        Hotel savedHotel = hotelRepository.save(hotel);
+        // Save hotel first to get the ID
+        Hotel savedHotel = hotelRepository.save(existingHotel);
 
-        // 🔹 Handle hotel images
+        // Add new images if provided
         if (hotelImages != null && !hotelImages.isEmpty()) {
-            List<Image> images = hotelImages.stream().map(file -> {
-                String url = storageService.upload(file); // S3/local storage logic
-                Image image = new Image();
-                image.setHotel(savedHotel);
-                image.setUrl(url);
-                return image;
-            }).toList();
-            imageRepository.saveAll(images);
-            savedHotel.setImages(images);
+            List<HotelImage> newImages = saveHotelImages(savedHotel, hotelImages);
+            savedHotel.getImages().addAll(newImages);
         }
 
-        // 🔹 Handle room images
-        if (roomImagesMap != null && !roomImagesMap.isEmpty()) {
-            for (Map.Entry<Long, List<MultipartFile>> entry : roomImagesMap.entrySet()) {
-                Long roomId = entry.getKey();
-                Room room = roomRepository.findById(roomId)
-                        .orElseThrow(() -> new RuntimeException("Room not found for image upload: " + roomId));
-
-                List<Image> roomImages = entry.getValue().stream().map(file -> {
-                    String url = storageService.upload(file);
-                    Image image = new Image();
-                    image.setRoom(room);
-                    image.setUrl(url);
-                    return image;
-                }).toList();
-                imageRepository.saveAll(roomImages);
-                room.setImages(roomImages);
-            }
-        }
-
-        return savedHotel;
+        // Convert to response DTO
+        return hotelMapper.toHotelResponseDTO(savedHotel);
     }
 
-    public HotelResponseDTO updateHotel(Long id, Hotel updated,
-                                        List<MultipartFile> hotelImages,
-                                        Map<Long, List<MultipartFile>> roomImagesMap) {
+    private void deleteHotelImages(Hotel hotel, List<Long> imageIds) {
+        for (Long imageId : imageIds) {
+            HotelImage image = imageRepository.findById(imageId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Image not found with id: " + imageId));
 
-        Hotel hotel = getHotelById(id);
-
-        // -----------------------------
-        // 1️⃣ Update basic fields
-        // -----------------------------
-        hotel.setName(updated.getName());
-        hotel.setDescription(updated.getDescription());
-        hotel.setAddress(updated.getAddress());
-        hotel.setCity(updated.getCity());
-        hotel.setState(updated.getState());
-        hotel.setCountry(updated.getCountry());
-        hotel.setPostalCode(updated.getPostalCode());
-        hotel.setPhoneNumber(updated.getPhoneNumber());
-        hotel.setEmail(updated.getEmail());
-        hotel.setWebsite(updated.getWebsite());
-        hotel.setStarRating(updated.getStarRating());
-        hotel.setUpdatedAt(LocalDateTime.now());
-
-        // -----------------------------
-        // 2️⃣ Update hotel-level amenities
-        // -----------------------------
-        if (updated.getAmenities() != null) {
-            Set<Long> amenityIds = updated.getAmenities().stream()
-                    .filter(a -> a.getId() != null)
-                    .map(Amenity::getId)
-                    .collect(Collectors.toSet());
-            if (!amenityIds.isEmpty()) {
-                List<Amenity> amenities = amenityRepository.findAllById(amenityIds);
-                hotel.setAmenities(new HashSet<>(amenities));
-            } else {
-                hotel.getAmenities().clear();
-            }
-        }
-
-        // -----------------------------
-        // 3️⃣ Update rooms and their amenities
-        // -----------------------------
-        if (updated.getRooms() != null) {
-            List<Room> updatedRooms = new ArrayList<>();
-            for (Room room : updated.getRooms()) {
-                Room managedRoom;
-                if (room.getId() != null) {
-                    // Existing room
-                    managedRoom = roomRepository.findById(room.getId())
-                            .orElseThrow(() -> new RuntimeException("Room not found: " + room.getId()));
-                } else {
-                    // New room
-                    managedRoom = new Room();
-                    managedRoom.setHotel(hotel);
-                }
-
-                // Update fields
-                managedRoom.setRoomNumber(room.getRoomNumber());
-                managedRoom.setFloor(room.getFloor());
-                managedRoom.setBasePrice(room.getBasePrice());
-                managedRoom.setMaxOccupancy(room.getMaxOccupancy());
-                managedRoom.setStatus(room.getStatus());
-                managedRoom.setDescription(room.getDescription());
-                managedRoom.setIsActive(room.getIsActive());
-                managedRoom.setUpdatedAt(LocalDateTime.now());
-
-                // Room type
-                if (room.getRoomType() != null && room.getRoomType().getId() != null) {
-                    RoomType roomType = roomTypeRepository.findById(room.getRoomType().getId())
-                            .orElseThrow(() -> new RuntimeException("Room type not found: " + room.getRoomType().getId()));
-                    managedRoom.setRoomType(roomType);
-                }
-
-                // Room amenities
-                if (room.getAmenities() != null) {
-                    Set<Long> roomAmenityIds = room.getAmenities().stream()
-                            .filter(a -> a.getId() != null)
-                            .map(Amenity::getId)
-                            .collect(Collectors.toSet());
-                    if (!roomAmenityIds.isEmpty()) {
-                        List<Amenity> roomAmenities = amenityRepository.findAllById(roomAmenityIds);
-                        managedRoom.setAmenities(new HashSet<>(roomAmenities));
-                    } else {
-                        managedRoom.getAmenities().clear();
-                    }
-                }
-
-                updatedRooms.add(managedRoom);
+            // Verify the image belongs to this hotel
+            if (!image.getHotel().getId().equals(hotel.getId())) {
+                throw new IllegalArgumentException("Image does not belong to this hotel");
             }
 
-            hotel.setRooms(updatedRooms);
-        }
-
-        // -----------------------------
-        // 4️⃣ Save hotel first (cascade saves rooms)
-        // -----------------------------
-        Hotel savedHotel = hotelRepository.save(hotel);
-
-        // -----------------------------
-        // 5️⃣ Update hotel images
-        // -----------------------------
-        if (hotelImages != null && !hotelImages.isEmpty()) {
-            // Optionally: delete old images or keep
-            // imageRepository.deleteByHotel(savedHotel);
-
-            List<Image> images = hotelImages.stream().map(file -> {
-                String url = storageService.upload(file);
-                Image image = new Image();
-                image.setHotel(savedHotel);
-                image.setUrl(url);
-                image.setCreatedAt(LocalDateTime.now());
-                return image;
-            }).toList();
-
-            imageRepository.saveAll(images);
-            savedHotel.setImages(images);
-        }
-
-        // -----------------------------
-        // 6️⃣ Update room images
-        // -----------------------------
-        if (roomImagesMap != null && !roomImagesMap.isEmpty()) {
-            for (Map.Entry<Long, List<MultipartFile>> entry : roomImagesMap.entrySet()) {
-                Long roomId = entry.getKey();
-                Room room = roomRepository.findById(roomId)
-                        .orElseThrow(() -> new RuntimeException("Room not found for image update: " + roomId));
-
-                List<Image> roomImages = entry.getValue().stream().map(file -> {
-                    String url = storageService.upload(file);
-                    Image image = new Image();
-                    image.setRoom(room);
-                    image.setUrl(url);
-                    image.setCreatedAt(LocalDateTime.now());
-                    return image;
-                }).toList();
-
-                imageRepository.saveAll(roomImages);
-                room.setImages(roomImages);
+            // Delete file from disk
+            try {
+                Path filePath = Paths.get(image.getUrl());
+                Files.deleteIfExists(filePath);
+            } catch (IOException e) {
+                // Log the error but continue with database deletion
+                System.err.println("Failed to delete image file: " + image.getUrl());
             }
-        }
 
-        return HotelMapper.toHotelResponseDTO(savedHotel);
+            // Remove from hotel's image list
+            hotel.getImages().remove(image);
+
+            // Delete from database
+            imageRepository.delete(image);
+        }
     }
-
 
     public void deleteHotel(Long id) {
         hotelRepository.deleteById(id);

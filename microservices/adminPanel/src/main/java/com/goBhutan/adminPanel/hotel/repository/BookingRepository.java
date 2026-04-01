@@ -37,5 +37,11 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             "FROM Booking b JOIN b.room r LEFT JOIN b.guests g WHERE b.hotel.id = :hotelId")
     List<BookingSummary> findBookingSummariesByHotelId(Long hotelId);
 
+    @Query("SELECT COUNT(b) FROM Booking b " +
+            "LEFT JOIN b.hotel h " +
+            "WHERE h.adminUserId = :userId " +
+            "AND b.status IN :statuses")
+    Long countByUserIdAndStatuses(@Param("userId") String userId,
+                                  @Param("statuses") List<String> statuses);
 }
 

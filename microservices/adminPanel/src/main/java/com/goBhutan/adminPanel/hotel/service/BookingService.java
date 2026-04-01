@@ -3,6 +3,7 @@ package com.goBhutan.adminPanel.hotel.service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -17,6 +18,8 @@ import com.goBhutan.adminPanel.hotel.repository.BookingSummary;
 import com.goBhutan.adminPanel.hotel.repository.HotelRepository;
 import com.goBhutan.adminPanel.hotel.repository.RoomRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
 import com.goBhutan.adminPanel.hotel.entity.Booking;
@@ -183,5 +186,22 @@ public class BookingService {
         room.setStatus(Room.RoomStatus.AVAILABLE);
         roomRepo.save(room);
         bookingRepo.save(booking);
+    }
+
+    @Transactional
+    public Long getTotalBookingCountByHotel() {
+        // 🔹 Extract Keycloak userId from token
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String userId;
+
+        if (principal instanceof Jwt jwt) {
+            userId = jwt.getSubject(); // Keycloak "sub" claim
+        } else if (principal instanceof String str) {
+            userId = str; // fallback if principal is String
+        } else {
+            throw new RuntimeException("Unsupported principal type: " + principal.getClass());
+        }
+        List<String> statuses = Arrays.asList("CONFIRMED", "CHECKED_IN", "PENDING");
+        return bookingRepo.countByUserIdAndStatuses(userId, statuses);
     }
 }

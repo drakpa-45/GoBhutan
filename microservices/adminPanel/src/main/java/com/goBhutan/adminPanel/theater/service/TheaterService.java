@@ -1,235 +1,213 @@
 package com.goBhutan.adminPanel.theater.service;
 
-import com.goBhutan.adminPanel.common.entity.AppUser;
-import com.goBhutan.adminPanel.theater.dto.*;
-import com.goBhutan.adminPanel.theater.entity.*;
-import com.goBhutan.adminPanel.theater.repository.*;
+import com.goBhutan.adminPanel.theater.dto.theater.TheaterDTO;
+import com.goBhutan.adminPanel.theater.dto.theater.TheaterResponseDTO;
+import com.goBhutan.adminPanel.theater.dto.theater.TheaterSummaryDTO;
+import com.goBhutan.adminPanel.theater.dto.theater.TheaterUpdateDTO;
+import com.goBhutan.adminPanel.theater.entity.Theater;
+import com.goBhutan.adminPanel.theater.entity.TheaterLocation;
+import com.goBhutan.adminPanel.theater.mapper.TheaterMapper;
+import com.goBhutan.adminPanel.theater.repository.TheaterLocationRepository;
+import com.goBhutan.adminPanel.theater.repository.TheaterRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @Transactional
+@RequiredArgsConstructor
+@Slf4j
 public class TheaterService {
 
     private final TheaterRepository theaterRepository;
-    private final TheaterLocationRepository theaterLocationRepository;
-    private final HallRepository hallRepository;
-    private final SeatRepository seatRepository;
-    private final ScreeningRepository screeningRepository;
-    private final com.goBhutan.adminPanel.common.repository.AppUserRepository appUserRepository;
+    private final TheaterLocationRepository locationRepository;
 
-    public TheaterService(TheaterRepository theaterRepository,
-                          TheaterLocationRepository theaterLocationRepository,
-                          HallRepository hallRepository,
-                          SeatRepository seatRepository,
-                          ScreeningRepository screeningRepository,
-                          com.goBhutan.adminPanel.common.repository.AppUserRepository appUserRepository) {
-        this.theaterRepository = theaterRepository;
-        this.theaterLocationRepository = theaterLocationRepository;
-        this.hallRepository = hallRepository;
-        this.seatRepository = seatRepository;
-        this.screeningRepository = screeningRepository;
-        this.appUserRepository = appUserRepository;
-    }
+    /**
+     * Create a new theater
+     */
+    public TheaterResponseDTO createTheater(TheaterDTO theaterDTO) {
+        log.info("Creating theater: {}", theaterDTO.getName());
 
-    public Page<TheaterDTO> getAllTheaters(Pageable pageable) {
-        return theaterRepository.findAllByIsActiveTrueOrderByCreatedAtDesc(pageable)
-                .map(this::convertToDTO);
-    }
-
-    public List<TheaterDTO> getAllTheatersList() {
-        return theaterRepository.findAllByIsActiveTrueOrderByNameAsc()
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
-
-    public Page<TheaterDTO> getTheatersByOwner(String adminUserId, Pageable pageable) {
-        return theaterRepository.findByAdminUserIdAndIsActiveTrueOrderByCreatedAtDesc(adminUserId, pageable)
-                .map(this::convertToDTO);
-    }
-
-    public List<TheaterDTO> getTheatersByOwnerList(String adminUserId) {
-        return theaterRepository.findByAdminUserIdAndIsActiveTrueOrderByNameAsc(adminUserId)
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
-
-    public Page<TheaterDTO> getTheatersByLocation(String locationId, Pageable pageable) {
-        return theaterRepository.findByLocationIdAndIsActiveTrueOrderByCreatedAtDesc(locationId, pageable)
-                .map(this::convertToDTO);
-    }
-
-    public List<TheaterDTO> getTheatersByLocationList(String locationId) {
-        return theaterRepository.findByLocationIdAndIsActiveTrueOrderByNameAsc(locationId)
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
-
-    public Page<TheaterDTO> getTheatersByDzongkhag(String dzongkhag, Pageable pageable) {
-        return theaterRepository.findByLocationDzongkhagContainingIgnoreCaseAndIsActiveTrueOrderByCreatedAtDesc(
-                        dzongkhag, pageable)
-                .map(this::convertToDTO);
-    }
-
-    public Page<TheaterDTO> searchTheaters(String search, Pageable pageable) {
-        return theaterRepository.findByNameContainingIgnoreCaseAndIsActiveTrueOrderByCreatedAtDesc(
-                        search, pageable)
-                .map(this::convertToDTO);
-    }
-
-    public TheaterDTO getTheaterById(String id) {
-        Theater theater = theaterRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Theater not found with id: " + id));
-        return convertToDTO(theater);
-    }
-
-    public TheaterDTO getTheaterWithHalls(String id) {
-        Theater theater = theaterRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Theater not found with id: " + id));
-
-        TheaterDTO dto = convertToDTO(theater);
-
-        List<HallDTO> halls = hallRepository.findByTheaterId(id)
-                .stream()
-                .map(this::convertHallToDTO)
-                .collect(Collectors.toList());
-        dto.setHalls(halls);
-
-        return dto;
-    }
-
-    public TheaterStatsDTO getTheaterStatistics(String id) {
-        Theater theater = theaterRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Theater not found with id: " + id));
-
-        Long totalHalls = hallRepository.countByTheaterIdAndIsActive(id, true);
-        Long totalSeats = seatRepository.countByTheaterIdAndIsActive(id);
-        Long activeScreenings = screeningRepository.countByTheaterIdAndIsActive(id);
-
-        TheaterStatsDTO stats = new TheaterStatsDTO();
-        stats.setTheaterId(id);
-        stats.setTheaterName(theater.getName());
-        stats.setTotalHalls(totalHalls);
-        stats.setTotalSeats(totalSeats);
-        stats.setActiveScreenings(activeScreenings);
-
-        return stats;
-    }
-
-    public TheaterDTO createTheater(TheaterCreateDTO createDTO, String adminUserId) {
-        if (theaterRepository.existsByNameIgnoreCaseAndLocationId(createDTO.getName(), createDTO.getLocationId())) {
-            throw new RuntimeException("Theater with name '" + createDTO.getName() + "' already exists in this location");
+        // Check if theater with same name exists in the same location
+        if (theaterRepository.existsByNameAndLocationId(theaterDTO.getName(), theaterDTO.getLocationId())) {
+            throw new IllegalArgumentException(
+                    "Theater with name '" + theaterDTO.getName() + "' already exists in this location"
+            );
         }
 
-        TheaterLocation location = theaterLocationRepository.findById(createDTO.getLocationId())
-                .orElseThrow(() -> new RuntimeException("Location not found with id: " + createDTO.getLocationId()));
+        // Fetch location
+        TheaterLocation location = locationRepository.findById(theaterDTO.getLocationId())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Location not found with ID: " + theaterDTO.getLocationId()
+                ));
 
-        AppUser owner = appUserRepository.findByKeycloakId(adminUserId)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + adminUserId));
-
-        Theater theater = new Theater();
-        theater.setName(createDTO.getName());
-        theater.setDescription(createDTO.getDescription());
+        // Create theater entity
+        Theater theater = TheaterMapper.toEntity(theaterDTO);
         theater.setLocation(location);
-        theater.setAdminUserId(adminUserId);
+        theater.setIsActive(true);
+        theater.setCreatedAt(Instant.now());
+        theater.setUpdatedAt(Instant.now());
 
+        // Save theater
         Theater savedTheater = theaterRepository.save(theater);
-        return convertToDTO(savedTheater);
+        log.info("Theater created successfully with ID: {}", savedTheater.getId());
+
+        return TheaterMapper.toResponseDTO(savedTheater);
     }
 
-    public TheaterDTO updateTheater(String id, TheaterCreateDTO updateDTO) {
-        Theater theater = theaterRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Theater not found with id: " + id));
+    /**
+     * Update an existing theater
+     */
+    public TheaterResponseDTO updateTheater(Long theaterId, TheaterUpdateDTO updateDTO) {
+        log.info("Updating theater with ID: {}", theaterId);
 
-        if (!theater.getName().equalsIgnoreCase(updateDTO.getName()) &&
-                theaterRepository.existsByNameIgnoreCaseAndLocationId(updateDTO.getName(), updateDTO.getLocationId())) {
-            throw new RuntimeException("Theater with name '" + updateDTO.getName() + "' already exists in this location");
+        // Find existing theater
+        Theater theater = theaterRepository.findById(theaterId)
+                .orElseThrow(() -> new IllegalArgumentException("Theater not found with ID: " + theaterId));
+
+        // Check for duplicate name if name is being updated
+        if (updateDTO.getName() != null && !updateDTO.getName().equals(theater.getName())) {
+            Long locationId = updateDTO.getLocationId() != null ?
+                    updateDTO.getLocationId() : theater.getLocation().getId();
+
+            if (theaterRepository.existsByNameAndLocationId(updateDTO.getName(), locationId)) {
+                throw new IllegalArgumentException(
+                        "Theater with name '" + updateDTO.getName() + "' already exists in this location"
+                );
+            }
         }
 
-        TheaterLocation location = theaterLocationRepository.findById(updateDTO.getLocationId())
-                .orElseThrow(() -> new RuntimeException("Location not found with id: " + updateDTO.getLocationId()));
+        // Update location if provided
+        if (updateDTO.getLocationId() != null && !updateDTO.getLocationId().equals(theater.getLocation().getId())) {
+            TheaterLocation newLocation = locationRepository.findById(updateDTO.getLocationId())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Location not found with ID: " + updateDTO.getLocationId()
+                    ));
+            theater.setLocation(newLocation);
+        }
 
-        theater.setName(updateDTO.getName());
-        theater.setDescription(updateDTO.getDescription());
-        theater.setLocation(location);
+        // Update other fields
+        TheaterMapper.updateEntityFromDTO(theater, updateDTO);
+        theater.setUpdatedAt(Instant.now());
 
+        // Save updated theater
         Theater updatedTheater = theaterRepository.save(theater);
-        return convertToDTO(updatedTheater);
+        log.info("Theater updated successfully: {}", theaterId);
+
+        return TheaterMapper.toResponseDTO(updatedTheater);
     }
 
-    public TheaterDTO toggleTheaterActive(String id) {
-        Theater theater = theaterRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Theater not found with id: " + id));
+    /**
+     * Soft delete a theater
+     */
+    public void softDeleteTheater(Long theaterId) {
+        log.info("Soft deleting theater with ID: {}", theaterId);
 
-        theater.setIsActive(!theater.getIsActive());
-        Theater updatedTheater = theaterRepository.save(theater);
-        return convertToDTO(updatedTheater);
-    }
-
-    public void deleteTheater(String id) {
-        Theater theater = theaterRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Theater not found with id: " + id));
+        Theater theater = theaterRepository.findById(theaterId)
+                .orElseThrow(() -> new IllegalArgumentException("Theater not found with ID: " + theaterId));
 
         theater.setIsActive(false);
+        theater.setUpdatedAt(Instant.now());
+
         theaterRepository.save(theater);
+        log.info("Theater soft deleted successfully: {}", theaterId);
     }
 
-    public TheaterDTO transferOwnership(String theaterId, String newOwnerId) {
+    /**
+     * Get theater by ID
+     */
+    @Transactional(readOnly = true)
+    public TheaterResponseDTO getTheaterById(Long theaterId) {
         Theater theater = theaterRepository.findById(theaterId)
-                .orElseThrow(() -> new RuntimeException("Theater not found with id: " + theaterId));
+                .orElseThrow(() -> new IllegalArgumentException("Theater not found with ID: " + theaterId));
 
-        AppUser newOwner = appUserRepository.findByKeycloakId(newOwnerId)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + newOwnerId));
-
-        theater.setAdminUserId(newOwnerId);
-        Theater updatedTheater = theaterRepository.save(theater);
-        return convertToDTO(updatedTheater);
+        return TheaterMapper.toResponseDTO(theater);
     }
 
-    private TheaterDTO convertToDTO(Theater theater) {
-        TheaterDTO dto = new TheaterDTO();
-        dto.setId(theater.getId());
-        dto.setName(theater.getName());
-        dto.setDescription(theater.getDescription());
-        dto.setOwnerId(theater.getAdminUserId());
-        dto.setIsActive(theater.getIsActive());
-        dto.setCreatedAt(theater.getCreatedAt().toString());
+    /**
+     * Get all active theaters
+     */
+    @Transactional(readOnly = true)
+    public List<TheaterSummaryDTO> getAllActiveTheaters() {
+        return theaterRepository.findByIsActiveTrue().stream()
+                .map(TheaterMapper::toSummaryDTO)
+                .collect(Collectors.toList());
+    }
 
-        if (theater.getLocation() != null) {
-            dto.setLocation(convertLocationToDTO(theater.getLocation()));
+    /**
+     * Get all active theaters by user id
+     */
+    @Transactional(readOnly = true)
+    public List<TheaterSummaryDTO> getAllTheatersByUserId() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String userId;
+
+        if (principal instanceof Jwt jwt) {
+            userId = jwt.getSubject(); // Keycloak "sub" claim
+        } else if (principal instanceof String str) {
+            userId = str; // fallback if principal is String
+        } else {
+            throw new RuntimeException("Unsupported principal type: " + principal.getClass());
         }
 
-        return dto;
+        return theaterRepository.findByAdminUserId(userId).stream()
+                .map(TheaterMapper::toSummaryDTO)
+                .collect(Collectors.toList());
     }
 
-    private TheaterLocationDTO convertLocationToDTO(TheaterLocation location) {
-        TheaterLocationDTO dto = new TheaterLocationDTO();
-        dto.setId(location.getId());
-        dto.setDzongkhag(location.getDzongkhag());
-        dto.setThromdoe(location.getThromdoe());
-        dto.setTown(location.getTown());
-        dto.setAddress(location.getAddress());
-        dto.setCreatedAt(location.getCreatedAt().toString());
-        return dto;
+
+
+    /**
+     * Get theaters by location
+     */
+    @Transactional(readOnly = true)
+    public List<TheaterSummaryDTO> getTheatersByLocation(Long locationId) {
+        return theaterRepository.findByLocationIdAndIsActiveTrue(locationId).stream()
+                .map(TheaterMapper::toSummaryDTO)
+                .collect(Collectors.toList());
     }
 
-    private HallDTO convertHallToDTO(Hall hall) {
-        HallDTO dto = new HallDTO();
-        dto.setId(hall.getId());
-        dto.setName(hall.getName());
-        dto.setTotalSeats(hall.getTotalSeats());
-        dto.setTheaterId(hall.getTheater().getId());
-        dto.setTheaterName(hall.getTheater().getName());
-        dto.setIsActive(hall.getIsActive());
-        dto.setCreatedAt(hall.getCreatedAt().toString());
-        return dto;
+    /**
+     * Search theaters by name
+     */
+    @Transactional(readOnly = true)
+    public List<TheaterSummaryDTO> searchTheaters(String name) {
+        return theaterRepository.searchByName(name).stream()
+                .map(TheaterMapper::toSummaryDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get all theaters with pagination
+     */
+    @Transactional(readOnly = true)
+    public Page<TheaterSummaryDTO> getAllTheatersPaginated(Pageable pageable) {
+        return theaterRepository.findAll(pageable)
+                .map(TheaterMapper::toSummaryDTO);
+    }
+
+    /**
+     * Restore soft deleted theater
+     */
+    public void restoreTheater(Long theaterId) {
+        log.info("Restoring theater with ID: {}", theaterId);
+
+        Theater theater = theaterRepository.findById(theaterId)
+                .orElseThrow(() -> new IllegalArgumentException("Theater not found with ID: " + theaterId));
+
+        theater.setIsActive(true);
+        theater.setUpdatedAt(Instant.now());
+
+        theaterRepository.save(theater);
+        log.info("Theater restored successfully: {}", theaterId);
     }
 }
