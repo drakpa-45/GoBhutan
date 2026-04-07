@@ -6,14 +6,14 @@ server:
 
 spring:
   datasource: # Database Configuration
-    url: jdbc:mysql://localhost:3306/goBhutan?useSSL=false&allowPublicKeyRetrieval=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    username: root
-    password: root
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    #url: jdbc:mysql://68.178.160.243:3306/gobhutan?useSSL=false&allowPublicKeyRetrieval=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    #username: gobhutan
-    #password: tmLgEP!l$7R6gMG@
+    #url: jdbc:mysql://localhost:3306/goBhutan?useSSL=false&allowPublicKeyRetrieval=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    #username: root
+    #password: root
     #driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://68.178.160.243:3306/gobhutan?useSSL=false&allowPublicKeyRetrieval=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: gobhutan
+    password: tmLgEP!l$7R6gMG@
+    driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
@@ -31,6 +31,19 @@ spring:
 
 # Multiple client configs
 app:
+  payment:
+    bfs:
+      provider: BFS_SECURE
+      beneficiary-id: BE10000272
+      beneficiary-bank-code: "01"
+      api-url: https://uatbfssecure.rma.org.bt/BFSSecure/nvpapi
+      callback-url: http://localhost:8085/boot/api/payment-int/wallet/topup/callback
+      version: "1.0"
+      private-key-path: "C:/Users/MrDeepakKumarGhalley/Desktop/YAYA PMT/bfs-keys/yaya.key"
+      private-key-password:
+      bfs-public-cert-path: "C:/Users/MrDeepakKumarGhalley/Desktop/YAYA PMT/bfs-keys/_.rma.org.bt.crt"
+      verify-response-signature: false
+      active: true
   clients:
     hotel:
       jwt: # JWT Role Converter
@@ -100,13 +113,17 @@ springdoc:
   group-configs:
     - group: bus-admin
       packages-to-scan: com.goBhutan.adminPanel.busAdmin.controller
+    - group: payment-int
+      packages-to-scan: com.goBhutan.adminPanel.paymentInt.controller
     - group: hotel-admin
       packages-to-scan: com.goBhutan.adminPanel.hotel.controller
     - group: common-endpoints
       packages-to-scan: com.goBhutan.adminPanel.common.controller
     - group: theater-admin
       packages-to-scan: com.goBhutan.adminPanel.theater.controller
+    
 
 file:
   upload:
     directory=uploads/hotels:
+
