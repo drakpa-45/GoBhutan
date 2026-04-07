@@ -3,6 +3,8 @@ package com.goBhutan.adminPanel.paymentInt.service.gateway;
 import com.goBhutan.adminPanel.paymentInt.config.BfsSecureProperties;
 import com.goBhutan.adminPanel.paymentInt.entity.PaymentWalletConfig;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayInputStream;
@@ -22,11 +24,13 @@ public class BfsSignatureService {
 
     private final BfsSecureProperties bfsProperties;
     private final BfsSourceStringBuilder sourceStringBuilder;
+    private final ResourceLoader resourceLoader;
 
-    public BfsSignatureService(BfsSecureProperties bfsProperties,
-                               BfsSourceStringBuilder sourceStringBuilder) {
+    public BfsSignatureService(BfsSecureProperties bfsProperties, BfsSourceStringBuilder sourceStringBuilder,
+            ResourceLoader resourceLoader) {
         this.bfsProperties = bfsProperties;
         this.sourceStringBuilder = sourceStringBuilder;
+        this.resourceLoader = resourceLoader;
     }
 
     public String signRequest(PaymentWalletConfig config, Map<String, String> fields) {
@@ -88,7 +92,7 @@ public class BfsSignatureService {
     }
 
     private PrivateKey loadPrivateKey(String path) throws Exception {
-        String pem = Files.readString(Path.of(path), StandardCharsets.UTF_8);
+        String pem = new String(readBytes(path), StandardCharsets.UTF_8);
 
         String normalized = pem
                 .replace("-----BEGIN PRIVATE KEY-----", "")
@@ -102,12 +106,27 @@ public class BfsSignatureService {
     }
 
     private PublicKey loadPublicKey(String path) throws Exception {
-        byte[] bytes = Files.readAllBytes(Path.of(path));
+        byte[] bytes = readBytes(path);
 
         CertificateFactory factory = CertificateFactory.getInstance("X.509");
         Certificate cert = factory.generateCertificate(new ByteArrayInputStream(bytes));
 
         return cert.getPublicKey();
+    }
+
+    private byte[] readBytes(String path) throws Exception {
+        if (path == null || path.isBlank()) {
+            throw new IllegalArgumentException("Key/certificate path must not be blank");
+        }
+
+        if (path.startsWith("classpath:")) {
+            Resource resource = resourceLoader.getResource(path);
+            try (var inputStream = resource.getInputStream()) {
+                return inputStream.readAllBytes();
+            }
+        }
+
+        return Files.readAllBytes(Path.of(path));
     }
 
     private String toUpperHex(byte[] bytes) {
