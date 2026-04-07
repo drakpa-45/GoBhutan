@@ -37,10 +37,8 @@ app:
       beneficiary-id: BE10000272
       beneficiary-bank-code: "01"
       api-url: https://uatbfssecure.rma.org.bt/BFSSecure/nvpapi
-      callback-url: http://localhost:8085/boot/api/payment-int/wallet/topup/callback
       version: "1.0"
-      private-key-path: "C:/Users/MrDeepakKumarGhalley/Desktop/YAYA PMT/bfs-keys/yaya.key"
-      private-key-password:
+      private-key-path: "classpath:yaya.key"
       bfs-public-cert-path: "C:/Users/MrDeepakKumarGhalley/Desktop/YAYA PMT/bfs-keys/_.rma.org.bt.crt"
       verify-response-signature: false
       active: true
@@ -126,4 +124,3 @@ springdoc:
 file:
   upload:
     directory=uploads/hotels:
-
