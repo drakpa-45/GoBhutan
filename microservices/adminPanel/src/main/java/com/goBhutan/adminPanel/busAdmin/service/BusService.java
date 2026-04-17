@@ -25,6 +25,7 @@ public class BusService {
 
         Bus bus = new Bus();
         bus.setBusNumber(request.getBusNumber());
+        bus.setBusName(request.getBusName());
         bus.setBusType(request.getBusType());
         bus.setTotalSeats(request.getTotalSeats());
         bus.setDescription(request.getDescription());
@@ -59,6 +60,7 @@ public class BusService {
 
         dto.setId(bus.getId());
         dto.setBusNumber(bus.getBusNumber());
+        dto.setBusName(bus.getBusName());
         dto.setBusType(bus.getBusType());
         dto.setTotalSeats(bus.getTotalSeats());
         dto.setDescription(bus.getDescription());
@@ -87,6 +89,7 @@ public class BusService {
         }
 
         bus.setBusNumber(request.getBusNumber());
+        bus.setBusName(request.getBusName());
         bus.setBusType(request.getBusType());
         bus.setTotalSeats(request.getTotalSeats());
         bus.setDescription(request.getDescription());

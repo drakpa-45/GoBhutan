@@ -12,10 +12,13 @@ import com.goBhutan.adminPanel.paymentInt.dto.TopupInitiateResponse;
 import com.goBhutan.adminPanel.paymentInt.dto.WalletBalanceResponse;
 import com.goBhutan.adminPanel.paymentInt.dto.WalletConfigResponse;
 import com.goBhutan.adminPanel.paymentInt.dto.WalletLedgerItemResponse;
+import com.goBhutan.adminPanel.paymentInt.dto.WalletPaymentRequest;
+import com.goBhutan.adminPanel.paymentInt.dto.WalletPaymentResult;
 import com.goBhutan.adminPanel.paymentInt.entity.PaymentTransaction;
 import com.goBhutan.adminPanel.paymentInt.entity.PaymentWalletConfig;
 import com.goBhutan.adminPanel.paymentInt.entity.WalletAccount;
 import com.goBhutan.adminPanel.paymentInt.entity.WalletLedger;
+import com.goBhutan.adminPanel.paymentInt.enums.PaymentProvider;
 import com.goBhutan.adminPanel.paymentInt.enums.PaymentStatus;
 import com.goBhutan.adminPanel.paymentInt.enums.PaymentTransactionType;
 import com.goBhutan.adminPanel.paymentInt.enums.WalletLedgerType;
@@ -206,6 +209,168 @@ public class PaymentIntegrationService {
                 .currency(wallet.getCurrency())
                 .balance(wallet.getBalance())
                 .status(wallet.getStatus())
+                .build();
+    }
+
+    public WalletPaymentResult payWithWallet(WalletPaymentRequest req, String userId) {
+        validateAmount(req.getAmount());
+
+        if (isBlank(req.getReferenceType())) {
+            throw new RuntimeException("referenceType is required");
+        }
+        if (isBlank(req.getReferenceId())) {
+            throw new RuntimeException("referenceId is required");
+        }
+
+        String referenceType = req.getReferenceType().trim();
+        String referenceId = req.getReferenceId().trim();
+
+        String currency = defaultCurrency(req.getCurrency());
+        WalletAccount wallet = walletAccountRepository.findByUserIdForUpdate(userId)
+                .orElseGet(() -> createNewWallet(userId, currency));
+
+        if (!"ACTIVE".equalsIgnoreCase(wallet.getStatus())) {
+            throw new RuntimeException("Wallet is not active");
+        }
+
+        if (transactionRepository.findFirstByUserIdAndReferenceTypeAndReferenceIdAndTransactionTypeAndStatus(
+                userId,
+                referenceType,
+                referenceId,
+                PaymentTransactionType.SERVICE_PAYMENT,
+                PaymentStatus.SUCCESS
+        ).isPresent()) {
+            throw new RuntimeException("Payment already completed for this reference");
+        }
+
+        BigDecimal amount = req.getAmount().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal before = wallet.getBalance();
+
+        if (before.compareTo(amount) < 0) {
+            throw new RuntimeException("Insufficient wallet balance");
+        }
+
+        BigDecimal after = before.subtract(amount);
+
+        PaymentTransaction transaction = new PaymentTransaction();
+        transaction.setPaymentRef(UUID.randomUUID().toString());
+        transaction.setProvider(PaymentProvider.INTERNAL_WALLET);
+        transaction.setTransactionType(PaymentTransactionType.SERVICE_PAYMENT);
+        transaction.setStatus(PaymentStatus.SUCCESS);
+        transaction.setAmount(amount);
+        transaction.setCurrency(currency);
+        transaction.setDescription(safeDescription(req.getDescription()));
+        transaction.setUserId(userId);
+        transaction.setServiceName(trimToNull(req.getServiceName()));
+        transaction.setReferenceType(referenceType);
+        transaction.setReferenceId(referenceId);
+        transaction.setProviderMessage("Wallet payment completed");
+        transactionRepository.save(transaction);
+
+        wallet.setBalance(after);
+        walletAccountRepository.save(wallet);
+
+        WalletLedger ledger = new WalletLedger();
+        ledger.setUserId(userId);
+        ledger.setType(WalletLedgerType.DEBIT);
+        ledger.setAmount(amount);
+        ledger.setBalanceBefore(before);
+        ledger.setBalanceAfter(after);
+        ledger.setReferenceType(referenceType);
+        ledger.setReferenceId(referenceId);
+        ledger.setRemarks(defaultMessage(req.getDescription(), "Wallet payment"));
+        walletLedgerRepository.save(ledger);
+
+        return WalletPaymentResult.builder()
+                .paymentRef(transaction.getPaymentRef())
+                .status(transaction.getStatus())
+                .amount(transaction.getAmount())
+                .currency(transaction.getCurrency())
+                .balanceBefore(before)
+                .balanceAfter(after)
+                .serviceName(transaction.getServiceName())
+                .referenceType(transaction.getReferenceType())
+                .referenceId(transaction.getReferenceId())
+                .message(transaction.getProviderMessage())
+                .build();
+    }
+
+    public WalletPaymentResult refundToWallet(
+            String originalPaymentRef,
+            BigDecimal amount,
+            String serviceName,
+            String referenceType,
+            String referenceId,
+            String description,
+            String userId
+    ) {
+        validateAmount(amount);
+
+        PaymentTransaction original = transactionRepository.findByPaymentRefAndUserId(originalPaymentRef, userId)
+                .orElseThrow(() -> new RuntimeException("Original payment transaction not found"));
+
+        if (original.getTransactionType() != PaymentTransactionType.SERVICE_PAYMENT
+                || original.getStatus() != PaymentStatus.SUCCESS) {
+            throw new RuntimeException("Original transaction is not a successful service payment");
+        }
+
+        WalletAccount wallet = walletAccountRepository.findByUserIdForUpdate(userId)
+                .orElseGet(() -> createNewWallet(userId, original.getCurrency()));
+
+        if (transactionRepository.findFirstByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
+                userId,
+                originalPaymentRef,
+                PaymentTransactionType.SERVICE_REFUND,
+                PaymentStatus.SUCCESS
+        ).isPresent()) {
+            throw new RuntimeException("Refund already completed for this payment");
+        }
+
+        BigDecimal refundAmount = amount.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal before = wallet.getBalance();
+        BigDecimal after = before.add(refundAmount);
+
+        PaymentTransaction refundTxn = new PaymentTransaction();
+        refundTxn.setPaymentRef(UUID.randomUUID().toString());
+        refundTxn.setProvider(PaymentProvider.INTERNAL_WALLET);
+        refundTxn.setTransactionType(PaymentTransactionType.SERVICE_REFUND);
+        refundTxn.setStatus(PaymentStatus.SUCCESS);
+        refundTxn.setAmount(refundAmount);
+        refundTxn.setCurrency(original.getCurrency());
+        refundTxn.setDescription(safeDescription(description));
+        refundTxn.setUserId(userId);
+        refundTxn.setServiceName(trimToNull(serviceName));
+        refundTxn.setReferenceType(referenceType);
+        refundTxn.setReferenceId(referenceId);
+        refundTxn.setParentPaymentRef(originalPaymentRef);
+        refundTxn.setProviderMessage("Wallet refund completed");
+        transactionRepository.save(refundTxn);
+
+        wallet.setBalance(after);
+        walletAccountRepository.save(wallet);
+
+        WalletLedger ledger = new WalletLedger();
+        ledger.setUserId(userId);
+        ledger.setType(WalletLedgerType.CREDIT);
+        ledger.setAmount(refundAmount);
+        ledger.setBalanceBefore(before);
+        ledger.setBalanceAfter(after);
+        ledger.setReferenceType(referenceType);
+        ledger.setReferenceId(referenceId);
+        ledger.setRemarks(defaultMessage(description, "Wallet refund"));
+        walletLedgerRepository.save(ledger);
+
+        return WalletPaymentResult.builder()
+                .paymentRef(refundTxn.getPaymentRef())
+                .status(refundTxn.getStatus())
+                .amount(refundTxn.getAmount())
+                .currency(refundTxn.getCurrency())
+                .balanceBefore(before)
+                .balanceAfter(after)
+                .serviceName(refundTxn.getServiceName())
+                .referenceType(refundTxn.getReferenceType())
+                .referenceId(refundTxn.getReferenceId())
+                .message(refundTxn.getProviderMessage())
                 .build();
     }
 

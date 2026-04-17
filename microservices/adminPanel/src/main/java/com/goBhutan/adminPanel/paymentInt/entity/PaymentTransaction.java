@@ -59,6 +59,18 @@ public class PaymentTransaction {
     @Column(length = 200)
     private String description;
 
+    @Column(length = 40)
+    private String serviceName;
+
+    @Column(length = 60)
+    private String referenceType;
+
+    @Column(length = 120)
+    private String referenceId;
+
+    @Column(length = 120)
+    private String parentPaymentRef;
+
     @Column(length = 120)
     private String providerTransactionId;
 
