@@ -17,6 +17,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,38 +47,34 @@ public class BusBookingController {
                 userId,
                 req.getApplicantCid(),
                 req.getApplicantMobile(),
-                req.getApplicantEmail()
-        );
+                req.getApplicantEmail());
 
         return ResponseEntity.ok(Map.of(
-                "paymentRef", bookings.get(0).getPaymentRef(),
+                "bookingRef", bookings.get(0).getBookingRef(),
                 "seatLabel", bookings.get(0).getSeatLabel(),
                 "expiresAt", bookings.get(0).getLockExpiry(),
-                "seats", bookings
-        ));
+                "totalAmount", bookings.get(0).getSchedule().getPrice().multiply(BigDecimal.valueOf(bookings.size())),
+                "seats", bookings));
     }
-
 
     @PostMapping("/confirm")
     public ResponseEntity<?> confirm(@RequestBody ConfirmBookingRequest req) {
         Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         String userId = jwt.getSubject();
 
-        List<SeatBooking> bookings = bookingService.confirmBooking(req.getPaymentRef(), userId);
+        List<SeatBooking> bookings = bookingService.confirmBooking(req.getBookingRef(), userId);
 
         return ResponseEntity.ok(Map.of(
-                "paymentRef", req.getPaymentRef(),
+                "bookingRef", req.getBookingRef(),
+                "paymentRef", bookings.get(0).getWalletPaymentRef(),
                 "scheduleId", bookings.get(0).getSchedule().getId(),
                 "totalSeats", bookings.size(),
                 "seats", bookings.stream().map(b -> Map.of(
                         "bookingId", b.getId(),
                         "seatNumber", b.getSeatNumber(),
                         "seatLabel", b.getSeatLabel(),
-                        "status", b.getStatus()
-                )).toList()
-        ));
+                        "status", b.getStatus())).toList()));
     }
-
 
     @PostMapping("/cancel/{bookingId}")
     public ResponseEntity<?> cancel(@PathVariable Long bookingId) {
@@ -88,8 +85,7 @@ public class BusBookingController {
 
         return ResponseEntity.ok(Map.of(
                 "bookingId", booking.getId(),
-                "status", "CANCELLED"
-        ));
+                "status", "CANCELLED"));
     }
 
     @GetMapping("/schedule/{scheduleId}/seats")
@@ -115,7 +111,9 @@ public class BusBookingController {
             if (b != null) {
                 if (b.getStatus() == BookingStatus.BOOKED)
                     status = "BOOKED";
-                else if (b.getStatus() == BookingStatus.LOCKED && b.getLockExpiry().isAfter(LocalDateTime.now()))
+                else if (b.getStatus() == BookingStatus.LOCKED
+                        && b.getLockExpiry() != null
+                        && b.getLockExpiry().isAfter(LocalDateTime.now()))
                     status = "LOCKED";
             }
             String seatLabel = getSeatLabel(bus, i);
@@ -123,8 +121,7 @@ public class BusBookingController {
             seats.add(Map.of(
                     "seatNumber", i,
                     "seatLabel", seatLabel,
-                    "status", status
-            ));
+                    "status", status));
         }
 
         return ResponseEntity.ok(seats);
@@ -158,7 +155,4 @@ public class BusBookingController {
 
         return ResponseEntity.ok(bookingService.getManifestForSchedule(id, adminUserId));
     }
-
-
-
 }

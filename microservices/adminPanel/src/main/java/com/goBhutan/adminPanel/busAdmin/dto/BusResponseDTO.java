@@ -13,6 +13,7 @@ import java.util.List;
 public class BusResponseDTO {
     private Long id;
     private String busNumber;
+    private String busName;
     private String busType;
     private Integer totalSeats;
     private String description;

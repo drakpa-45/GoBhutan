@@ -75,6 +75,7 @@ app:
           clientSecret: d7zknakWJgDEOIb5gvQNQ64cS97G14cT
           #clientSecret: PH6xReyj2Ip329p1RwRmgbcebi4kgjN0
     bus:
+      release-expired-lock: false
       jwt:
         auth:
           converter:

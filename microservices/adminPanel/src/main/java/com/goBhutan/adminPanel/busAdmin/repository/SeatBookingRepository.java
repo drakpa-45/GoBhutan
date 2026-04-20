@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface SeatBookingRepository extends JpaRepository<SeatBooking, Long> {
@@ -30,10 +31,28 @@ public interface SeatBookingRepository extends JpaRepository<SeatBooking, Long> 
     @Query("UPDATE SeatBooking b SET b.status='EXPIRED' WHERE b.status='LOCKED' AND b.lockExpiry < :now")
     void releaseExpiredLocks(LocalDateTime now);
 
+    @Query("""
+        SELECT b
+        FROM SeatBooking b
+        JOIN FETCH b.schedule s
+        WHERE b.status = com.goBhutan.adminPanel.busAdmin.enums.BookingStatus.LOCKED
+          AND b.lockExpiry < :now
+    """)
+    List<SeatBooking> findExpiredLockedSeats(LocalDateTime now);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM Schedule s WHERE s.id = :id")
     Schedule lockSchedule(Long id);
 
     List<SeatBooking> findByScheduleId(Long scheduleId);
-    List<SeatBooking> findByPaymentRef(String ref);
+    Optional<SeatBooking> findByScheduleIdAndSeatNumber(Long scheduleId, Integer seatNumber);
+    List<SeatBooking> findByBookingRef(String bookingRef);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        SELECT b
+        FROM SeatBooking b
+        WHERE b.bookingRef = :bookingRef
+    """)
+    List<SeatBooking> findByBookingRefForUpdate(String bookingRef);
 }

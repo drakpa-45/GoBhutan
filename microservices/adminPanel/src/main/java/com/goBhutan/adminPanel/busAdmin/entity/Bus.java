@@ -33,6 +33,10 @@ public class Bus {
     @Column(name = "bus_number", nullable = false, unique = true)
     private String busNumber;
 
+    @NotBlank(message = "Bus name is required")
+    @Column(name = "bus_name", nullable = false)
+    private String busName;
+
     @NotBlank(message = "Bus type is required")
     @Column(name = "bus_type", nullable = false)
     private String busType;

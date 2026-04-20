@@ -4,5 +4,5 @@ import lombok.Data;
 
 @Data
 public class ConfirmBookingRequest {
-    private String paymentRef;   // payment gateway transaction id
+    private String bookingRef;
 }

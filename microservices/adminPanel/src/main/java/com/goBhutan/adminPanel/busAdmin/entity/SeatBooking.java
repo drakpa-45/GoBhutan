@@ -48,8 +48,11 @@ public class SeatBooking {
 
     private LocalDateTime lockExpiry;
 
-    @Column(name = "payment_ref")
-    private String paymentRef;
+    @Column(name = "booking_ref", length = 120)
+    private String bookingRef;
+
+    @Column(name = "wallet_payment_ref", length = 120)
+    private String walletPaymentRef;
 
     @CreationTimestamp
     private LocalDateTime createdAt;
