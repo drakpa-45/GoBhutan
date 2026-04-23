@@ -2,6 +2,7 @@ package com.goBhutan.adminPanel.busAdmin.controller;
 
 import com.goBhutan.adminPanel.busAdmin.dto.ConfirmBookingRequest;
 import com.goBhutan.adminPanel.busAdmin.dto.LockSeatRequest;
+import com.goBhutan.adminPanel.busAdmin.dto.BusTicketResponse;
 import com.goBhutan.adminPanel.busAdmin.entity.Bus;
 import com.goBhutan.adminPanel.busAdmin.entity.BusSeatConfig;
 import com.goBhutan.adminPanel.busAdmin.entity.Schedule;
@@ -11,6 +12,7 @@ import com.goBhutan.adminPanel.busAdmin.repository.BusScheduleRepository;
 import com.goBhutan.adminPanel.busAdmin.repository.SeatBookingRepository;
 import com.goBhutan.adminPanel.busAdmin.service.BusBookingService;
 import com.goBhutan.adminPanel.busAdmin.service.TicketService;
+import com.goBhutan.adminPanel.common.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -137,14 +139,11 @@ public class BusBookingController {
     }
 
     @GetMapping("/ticket/{bookingId}")
-    public ResponseEntity<byte[]> getTicket(@PathVariable Long bookingId) throws Exception {
+    public ResponseEntity<ApiResponse<BusTicketResponse>> getTicket(@PathVariable Long bookingId) {
+        Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String userId = jwt.getSubject();
 
-        byte[] pdf = ticketService.generateTicket(bookingId);
-
-        return ResponseEntity.ok()
-                .header("Content-Type", "application/pdf")
-                .header("Content-Disposition", "attachment; filename=ticket-" + bookingId + ".pdf")
-                .body(pdf);
+        return ResponseEntity.ok(ApiResponse.success(ticketService.getTicketDetails(bookingId, userId)));
     }
 
     @GetMapping("/admin/schedule/{id}/manifest")
