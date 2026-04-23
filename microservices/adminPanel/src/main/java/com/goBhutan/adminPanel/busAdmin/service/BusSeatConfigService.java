@@ -32,8 +32,8 @@ public class BusSeatConfigService {
 
 
     @Transactional
-    public List<BusSeatConfig> generateSeatLayout(Long busId, boolean forceRegenerate) {
-        Bus bus = busRepository.findById(busId)
+    public List<BusSeatConfig> generateSeatLayout(Long busId, boolean forceRegenerate, String adminUserId) {
+        Bus bus = busRepository.findByIdAndAdminUserId(busId, adminUserId)
                 .orElseThrow(() -> new RuntimeException("Bus not found with ID: " + busId));
 
         Integer totalSeats = bus.getTotalSeats();

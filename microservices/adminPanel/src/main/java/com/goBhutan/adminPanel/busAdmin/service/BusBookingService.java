@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -50,9 +51,6 @@ public class BusBookingService {
         if (seatNumbers == null || seatNumbers.isEmpty())
             throw new RuntimeException("No seats selected");
 
-        if (seatLabels == null || seatLabels.size() != seatNumbers.size())
-            throw new RuntimeException("Seat numbers and labels mismatch");
-
         if (new HashSet<>(seatNumbers).size() != seatNumbers.size())
             throw new RuntimeException("Duplicate seat numbers selected");
 
@@ -63,6 +61,15 @@ public class BusBookingService {
 
         // Step 2 — Lock parent schedule
         Schedule schedule = scheduleRepo.lockSchedule(scheduleId);
+        Bus bus = schedule.getBus();
+
+        if (Boolean.FALSE.equals(schedule.getActive())) {
+            throw new RuntimeException("Schedule is not active");
+        }
+
+        if (schedule.getDepartureTime() != null && !schedule.getDepartureTime().isAfter(now)) {
+            throw new RuntimeException("Cannot book seats for a departed schedule");
+        }
 
         // Step 3 — Single booking ref for single/multiple seats
         String bookingRef = UUID.randomUUID().toString();
@@ -73,7 +80,8 @@ public class BusBookingService {
         // Step 4 — Reuse the same seat row for cancelled/expired seats
         for (int i = 0; i < seatNumbers.size(); i++) {
             Integer seatNumber = seatNumbers.get(i);
-            String seatLabel = seatLabels.get(i);
+            validateSeatNumber(seatNumber, bus.getTotalSeats());
+            String seatLabel = getSeatLabel(bus, seatNumber);
 
             SeatBooking booking = bookingRepo.findByScheduleIdAndSeatNumber(scheduleId, seatNumber)
                     .orElseGet(() -> {
@@ -139,6 +147,15 @@ public class BusBookingService {
             throw new RuntimeException("Seat lock expired");
 
         Schedule schedule = scheduleRepo.lockSchedule(bookings.get(0).getSchedule().getId());
+
+        if (Boolean.FALSE.equals(schedule.getActive())) {
+            throw new RuntimeException("Schedule is not active");
+        }
+
+        if (schedule.getDepartureTime() != null && !schedule.getDepartureTime().isAfter(now)) {
+            throw new RuntimeException("Cannot confirm seats for a departed schedule");
+        }
+
         BigDecimal totalAmount = schedule.getPrice().multiply(BigDecimal.valueOf(bookings.size()));
 
         if (bookings.stream().anyMatch(b -> b.getWalletPaymentRef() != null && !b.getWalletPaymentRef().isBlank()))
@@ -153,6 +170,16 @@ public class BusBookingService {
         paymentRequest.setDescription("Bus booking payment");
 
         WalletPaymentResult walletPayment = paymentService.payWithWallet(paymentRequest, userId);
+
+        paymentService.creditServiceSettlement(
+                walletPayment.getPaymentRef(),
+                totalAmount,
+                "BUS",
+                "BUS_BOOKING",
+                bookingRef,
+                "Bus booking settlement",
+                schedule.getBus().getAdminUserId()
+        );
 
         // Confirm seats
         for (SeatBooking b : bookings) {
@@ -187,55 +214,70 @@ public class BusBookingService {
                 ? bookingRepo.findByBookingRefForUpdate(booking.getBookingRef())
                 : List.of(booking);
 
+        SeatBooking targetBooking = bookings.stream()
+                .filter(b -> b.getId().equals(bookingId))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
+
         if (bookings.stream().anyMatch(b -> !b.getUserId().equals(userId)))
             throw new RuntimeException("Unauthorized cancellation");
 
-        if (bookings.stream().allMatch(b -> b.getStatus() == BookingStatus.CANCELLED))
+        if (targetBooking.getStatus() == BookingStatus.CANCELLED)
             throw new RuntimeException("Booking already cancelled");
 
-        if (bookings.stream().allMatch(b -> b.getStatus() == BookingStatus.EXPIRED))
+        if (targetBooking.getStatus() == BookingStatus.EXPIRED)
             throw new RuntimeException("Booking already expired");
 
-        Schedule schedule = scheduleRepo.lockSchedule(bookings.get(0).getSchedule().getId());
+        Schedule schedule = scheduleRepo.lockSchedule(targetBooking.getSchedule().getId());
 
-        long bookedSeatCount = bookings.stream()
-                .filter(b -> b.getStatus() == BookingStatus.BOOKED)
-                .count();
+        if (targetBooking.getStatus() == BookingStatus.BOOKED) {
+            String walletPaymentRef = targetBooking.getWalletPaymentRef();
+            if (walletPaymentRef == null || walletPaymentRef.isBlank()) {
+                throw new RuntimeException("Missing wallet payment reference for booked seat");
+            }
 
-        if (bookedSeatCount > 0) {
-            String walletPaymentRef = bookings.stream()
-                    .map(SeatBooking::getWalletPaymentRef)
-                    .filter(ref -> ref != null && !ref.isBlank())
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("Missing wallet payment reference for booked seats"));
+            long paidSeatCount = bookings.stream()
+                    .filter(b -> walletPaymentRef.equals(b.getWalletPaymentRef()))
+                    .count();
+
+            if (paidSeatCount <= 0) {
+                throw new RuntimeException("No paid seats found for cancellation");
+            }
+
+            BigDecimal originalPaidAmount = paymentService.getSuccessfulServicePaymentAmount(walletPaymentRef, userId);
+            BigDecimal refundAmount = originalPaidAmount
+                    .divide(BigDecimal.valueOf(paidSeatCount), 2, RoundingMode.HALF_UP);
+
+            paymentService.reverseServiceSettlement(
+                    walletPaymentRef,
+                    refundAmount,
+                    "BUS",
+                    "BUS_BOOKING",
+                    targetBooking.getBookingRef(),
+                    "Bus booking settlement reversal",
+                    schedule.getBus().getAdminUserId()
+            );
 
             paymentService.refundToWallet(
                     walletPaymentRef,
-                    schedule.getPrice().multiply(BigDecimal.valueOf(bookedSeatCount)),
+                    refundAmount,
                     "BUS",
                     "BUS_BOOKING",
-                    bookings.get(0).getBookingRef(),
+                    targetBooking.getBookingRef(),
                     "Bus booking refund",
                     userId
             );
 
-            schedule.setAvailableSeats(schedule.getAvailableSeats() + (int) bookedSeatCount);
+            schedule.setAvailableSeats(schedule.getAvailableSeats() + 1);
         }
 
-        for (SeatBooking groupBooking : bookings) {
-            if (groupBooking.getStatus() != BookingStatus.CANCELLED && groupBooking.getStatus() != BookingStatus.EXPIRED) {
-                groupBooking.setStatus(BookingStatus.CANCELLED);
-                groupBooking.setLockExpiry(null);
-            }
-        }
+        targetBooking.setStatus(BookingStatus.CANCELLED);
+        targetBooking.setLockExpiry(null);
 
-        List<SeatBooking> savedBookings = bookingRepo.saveAll(bookings);
+        SeatBooking savedBooking = bookingRepo.save(targetBooking);
         broadcastService.broadcastSeatUpdate(schedule.getId());
 
-        return savedBookings.stream()
-                .filter(b -> b.getId().equals(bookingId))
-                .findFirst()
-                .orElse(savedBookings.get(0));
+        return savedBooking;
     }
 
     public List<ManifestItem> getManifestForSchedule(Long scheduleId, String adminUserId) {
@@ -267,6 +309,12 @@ public class BusBookingService {
             }
         }
         return "Seat " + seatNumber;
+    }
+
+    private void validateSeatNumber(Integer seatNumber, Integer totalSeats) {
+        if (seatNumber == null || seatNumber < 1 || totalSeats == null || seatNumber > totalSeats) {
+            throw new RuntimeException("Invalid seat number: " + seatNumber);
+        }
     }
 
 }

@@ -24,4 +24,12 @@ public interface BusRouteRepository extends JpaRepository<BusRoute, Long> {
             String source,
             String destination
     );
+
+    boolean existsByBusAndDepartureTimeAndSourceAndDestinationAndActiveTrueAndIdNot(
+            Bus bus,
+            LocalTime departureTime,
+            String source,
+            String destination,
+            Long id
+    );
 }

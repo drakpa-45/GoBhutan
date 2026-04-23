@@ -4,8 +4,10 @@ import com.goBhutan.adminPanel.paymentInt.entity.PaymentTransaction;
 import com.goBhutan.adminPanel.paymentInt.enums.PaymentStatus;
 import com.goBhutan.adminPanel.paymentInt.enums.PaymentTransactionType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 
 @Repository
@@ -20,6 +22,21 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
             PaymentStatus status
     );
     Optional<PaymentTransaction> findFirstByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
+            String userId,
+            String parentPaymentRef,
+            PaymentTransactionType transactionType,
+            PaymentStatus status
+    );
+
+    @Query("""
+            SELECT COALESCE(SUM(p.amount), 0)
+            FROM PaymentTransaction p
+            WHERE p.userId = :userId
+              AND p.parentPaymentRef = :parentPaymentRef
+              AND p.transactionType = :transactionType
+              AND p.status = :status
+            """)
+    BigDecimal sumAmountByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
             String userId,
             String parentPaymentRef,
             PaymentTransactionType transactionType,

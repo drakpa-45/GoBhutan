@@ -317,16 +317,18 @@ public class PaymentIntegrationService {
         WalletAccount wallet = walletAccountRepository.findByUserIdForUpdate(userId)
                 .orElseGet(() -> createNewWallet(userId, original.getCurrency()));
 
-        if (transactionRepository.findFirstByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
+        BigDecimal existingRefundAmount = transactionRepository.sumAmountByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
                 userId,
                 originalPaymentRef,
                 PaymentTransactionType.SERVICE_REFUND,
                 PaymentStatus.SUCCESS
-        ).isPresent()) {
-            throw new RuntimeException("Refund already completed for this payment");
-        }
+        );
 
         BigDecimal refundAmount = amount.setScale(2, RoundingMode.HALF_UP);
+        if (existingRefundAmount.add(refundAmount).compareTo(original.getAmount()) > 0) {
+            throw new RuntimeException("Refund amount exceeds original payment");
+        }
+
         BigDecimal before = wallet.getBalance();
         BigDecimal after = before.add(refundAmount);
 
@@ -371,6 +373,190 @@ public class PaymentIntegrationService {
                 .referenceType(refundTxn.getReferenceType())
                 .referenceId(refundTxn.getReferenceId())
                 .message(refundTxn.getProviderMessage())
+                .build();
+    }
+
+    public BigDecimal getSuccessfulServicePaymentAmount(String paymentRef, String userId) {
+        PaymentTransaction original = transactionRepository.findByPaymentRefAndUserId(paymentRef, userId)
+                .orElseThrow(() -> new RuntimeException("Original payment transaction not found"));
+
+        if (original.getTransactionType() != PaymentTransactionType.SERVICE_PAYMENT
+                || original.getStatus() != PaymentStatus.SUCCESS) {
+            throw new RuntimeException("Original transaction is not a successful service payment");
+        }
+
+        return original.getAmount();
+    }
+
+    public WalletPaymentResult creditServiceSettlement(
+            String originalPaymentRef,
+            BigDecimal amount,
+            String serviceName,
+            String referenceType,
+            String referenceId,
+            String description,
+            String recipientUserId
+    ) {
+        validateAmount(amount);
+
+        if (isBlank(recipientUserId)) {
+            throw new RuntimeException("recipientUserId is required");
+        }
+
+        PaymentTransaction original = transactionRepository.findByPaymentRef(originalPaymentRef)
+                .orElseThrow(() -> new RuntimeException("Original payment transaction not found"));
+
+        if (original.getTransactionType() != PaymentTransactionType.SERVICE_PAYMENT
+                || original.getStatus() != PaymentStatus.SUCCESS) {
+            throw new RuntimeException("Original transaction is not a successful service payment");
+        }
+
+        if (transactionRepository.findFirstByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
+                recipientUserId,
+                originalPaymentRef,
+                PaymentTransactionType.SERVICE_SETTLEMENT,
+                PaymentStatus.SUCCESS
+        ).isPresent()) {
+            throw new RuntimeException("Settlement already completed for this payment");
+        }
+
+        WalletAccount wallet = walletAccountRepository.findByUserIdForUpdate(recipientUserId)
+                .orElseGet(() -> createNewWallet(recipientUserId, original.getCurrency()));
+
+        BigDecimal settlementAmount = amount.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal before = wallet.getBalance();
+        BigDecimal after = before.add(settlementAmount);
+
+        PaymentTransaction settlementTxn = new PaymentTransaction();
+        settlementTxn.setPaymentRef(UUID.randomUUID().toString());
+        settlementTxn.setProvider(PaymentProvider.INTERNAL_WALLET);
+        settlementTxn.setTransactionType(PaymentTransactionType.SERVICE_SETTLEMENT);
+        settlementTxn.setStatus(PaymentStatus.SUCCESS);
+        settlementTxn.setAmount(settlementAmount);
+        settlementTxn.setCurrency(original.getCurrency());
+        settlementTxn.setDescription(safeDescription(description));
+        settlementTxn.setUserId(recipientUserId);
+        settlementTxn.setServiceName(trimToNull(serviceName));
+        settlementTxn.setReferenceType(referenceType);
+        settlementTxn.setReferenceId(referenceId);
+        settlementTxn.setParentPaymentRef(originalPaymentRef);
+        settlementTxn.setProviderMessage("Wallet settlement credited");
+        transactionRepository.save(settlementTxn);
+
+        wallet.setBalance(after);
+        walletAccountRepository.save(wallet);
+
+        WalletLedger ledger = new WalletLedger();
+        ledger.setUserId(recipientUserId);
+        ledger.setType(WalletLedgerType.CREDIT);
+        ledger.setAmount(settlementAmount);
+        ledger.setBalanceBefore(before);
+        ledger.setBalanceAfter(after);
+        ledger.setReferenceType(referenceType);
+        ledger.setReferenceId(referenceId);
+        ledger.setRemarks(defaultMessage(description, "Wallet settlement credit"));
+        walletLedgerRepository.save(ledger);
+
+        return WalletPaymentResult.builder()
+                .paymentRef(settlementTxn.getPaymentRef())
+                .status(settlementTxn.getStatus())
+                .amount(settlementTxn.getAmount())
+                .currency(settlementTxn.getCurrency())
+                .balanceBefore(before)
+                .balanceAfter(after)
+                .serviceName(settlementTxn.getServiceName())
+                .referenceType(settlementTxn.getReferenceType())
+                .referenceId(settlementTxn.getReferenceId())
+                .message(settlementTxn.getProviderMessage())
+                .build();
+    }
+
+    public WalletPaymentResult reverseServiceSettlement(
+            String originalPaymentRef,
+            BigDecimal amount,
+            String serviceName,
+            String referenceType,
+            String referenceId,
+            String description,
+            String recipientUserId
+    ) {
+        validateAmount(amount);
+
+        if (isBlank(recipientUserId)) {
+            throw new RuntimeException("recipientUserId is required");
+        }
+
+        PaymentTransaction settlementTxn = transactionRepository
+                .findFirstByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
+                        recipientUserId,
+                        originalPaymentRef,
+                        PaymentTransactionType.SERVICE_SETTLEMENT,
+                        PaymentStatus.SUCCESS
+                )
+                .orElseThrow(() -> new RuntimeException("Settlement transaction not found"));
+
+        BigDecimal reversalAmount = amount.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal existingReversalAmount = transactionRepository.sumAmountByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
+                recipientUserId,
+                settlementTxn.getPaymentRef(),
+                PaymentTransactionType.SERVICE_SETTLEMENT_REVERSAL,
+                PaymentStatus.SUCCESS
+        );
+
+        if (existingReversalAmount.add(reversalAmount).compareTo(settlementTxn.getAmount()) > 0) {
+            throw new RuntimeException("Settlement reversal amount exceeds credited settlement");
+        }
+
+        WalletAccount wallet = walletAccountRepository.findByUserIdForUpdate(recipientUserId)
+                .orElseGet(() -> createNewWallet(recipientUserId, settlementTxn.getCurrency()));
+
+        BigDecimal before = wallet.getBalance();
+        if (before.compareTo(reversalAmount) < 0) {
+            throw new RuntimeException("Owner wallet has insufficient balance for refund reversal");
+        }
+        BigDecimal after = before.subtract(reversalAmount);
+
+        PaymentTransaction reversalTxn = new PaymentTransaction();
+        reversalTxn.setPaymentRef(UUID.randomUUID().toString());
+        reversalTxn.setProvider(PaymentProvider.INTERNAL_WALLET);
+        reversalTxn.setTransactionType(PaymentTransactionType.SERVICE_SETTLEMENT_REVERSAL);
+        reversalTxn.setStatus(PaymentStatus.SUCCESS);
+        reversalTxn.setAmount(reversalAmount);
+        reversalTxn.setCurrency(settlementTxn.getCurrency());
+        reversalTxn.setDescription(safeDescription(description));
+        reversalTxn.setUserId(recipientUserId);
+        reversalTxn.setServiceName(trimToNull(serviceName));
+        reversalTxn.setReferenceType(referenceType);
+        reversalTxn.setReferenceId(referenceId);
+        reversalTxn.setParentPaymentRef(settlementTxn.getPaymentRef());
+        reversalTxn.setProviderMessage("Wallet settlement reversed");
+        transactionRepository.save(reversalTxn);
+
+        wallet.setBalance(after);
+        walletAccountRepository.save(wallet);
+
+        WalletLedger ledger = new WalletLedger();
+        ledger.setUserId(recipientUserId);
+        ledger.setType(WalletLedgerType.DEBIT);
+        ledger.setAmount(reversalAmount);
+        ledger.setBalanceBefore(before);
+        ledger.setBalanceAfter(after);
+        ledger.setReferenceType(referenceType);
+        ledger.setReferenceId(referenceId);
+        ledger.setRemarks(defaultMessage(description, "Wallet settlement reversal"));
+        walletLedgerRepository.save(ledger);
+
+        return WalletPaymentResult.builder()
+                .paymentRef(reversalTxn.getPaymentRef())
+                .status(reversalTxn.getStatus())
+                .amount(reversalTxn.getAmount())
+                .currency(reversalTxn.getCurrency())
+                .balanceBefore(before)
+                .balanceAfter(after)
+                .serviceName(reversalTxn.getServiceName())
+                .referenceType(reversalTxn.getReferenceType())
+                .referenceId(reversalTxn.getReferenceId())
+                .message(reversalTxn.getProviderMessage())
                 .build();
     }
 

@@ -1,18 +1,17 @@
 package com.goBhutan.adminPanel.busAdmin.service;
 
+import com.goBhutan.adminPanel.busAdmin.dto.BusTicketResponse;
+import com.goBhutan.adminPanel.busAdmin.enums.BookingStatus;
 import com.goBhutan.adminPanel.busAdmin.entity.SeatBooking;
 import com.goBhutan.adminPanel.busAdmin.repository.SeatBookingRepository;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.MultiFormatWriter;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
-import com.lowagie.text.DocumentException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.xhtmlrenderer.pdf.ITextRenderer;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.Base64;
 
 @Service
@@ -20,69 +19,59 @@ import java.util.Base64;
 public class TicketService {
     private final SeatBookingRepository bookingRepo;
 
-    public byte[] generateTicket(Long bookingId) throws Exception {
-
-        SeatBooking booking = bookingRepo.findById(bookingId)
-                .orElseThrow(() -> new RuntimeException("Booking not found"));
+    public BusTicketResponse getTicketDetails(Long bookingId, String userId) {
+        SeatBooking booking = getAuthorizedBookedTicket(bookingId, userId);
 
         String qrData = "BOOKING:" + booking.getId() +
                 "|CID:" + booking.getApplicantCid() +
                 "|SEAT:" + booking.getSeatNumber();
 
-        String qrBase64 = createQrCodeBase64(qrData);
-
-        String html = buildHtmlTicket(booking, qrBase64);
-
-        return convertHtmlToPdf(html);
+        return BusTicketResponse.builder()
+                .bookingId(booking.getId())
+                .bookingRef(booking.getBookingRef())
+                .paymentRef(booking.getWalletPaymentRef())
+                .scheduleId(booking.getSchedule().getId())
+                .busNumber(booking.getSchedule().getBus().getBusNumber())
+                .busName(booking.getSchedule().getBus().getBusName())
+                .source(booking.getSchedule().getRoute().getSource())
+                .destination(booking.getSchedule().getRoute().getDestination())
+                .departureTime(booking.getSchedule().getDepartureTime())
+                .arrivalTime(booking.getSchedule().getArrivalTime())
+                .seatNumber(booking.getSeatNumber())
+                .seatLabel(booking.getSeatLabel())
+                .applicantCid(booking.getApplicantCid())
+                .applicantMobile(booking.getApplicantMobile())
+                .applicantEmail(booking.getApplicantEmail())
+                .status(booking.getStatus().name())
+                .qrCodeBase64(generateQrCodeBase64(qrData))
+                .build();
     }
 
-    private String buildHtmlTicket(SeatBooking booking, String qrBase64) {
+    private SeatBooking getAuthorizedBookedTicket(Long bookingId, String userId) {
+        SeatBooking booking = bookingRepo.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
 
-        return """
-        <html>
-        <body style='font-family: Arial;'>
-            <h2>Bus Ticket</h2>
-            <p><strong>Passenger CID:</strong> %s</p>
-            <p><strong>Email:</strong> %s</p>
-            <p><strong>Mobile:</strong> %s</p>
-            <p><strong>Seat Number:</strong> %d</p>
-            <p><strong>Schedule:</strong> %s</p>
-            <img src="data:image/png;base64,%s" width="180"/>
-        </body>
-        </html>
-        """.formatted(
-                booking.getApplicantCid(),
-                booking.getApplicantEmail(),
-                booking.getApplicantMobile(),
-                booking.getSeatNumber(),
-                booking.getSchedule().getDepartureTime(),
-                qrBase64
-        );
-    }
-
-    private String createQrCodeBase64(String data) throws Exception {
-        int size = 300;
-        BitMatrix matrix = new MultiFormatWriter().encode(data, BarcodeFormat.QR_CODE, size, size);
-
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        MatrixToImageWriter.writeToStream(matrix, "png", out);
-        return Base64.getEncoder().encodeToString(out.toByteArray());
-    }
-
-    private byte[] convertHtmlToPdf(String html) throws IOException {
-
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        ITextRenderer renderer = new ITextRenderer();
-        renderer.setDocumentFromString(html);
-        renderer.layout();
-        try {
-            renderer.createPDF(output);
-        } catch (DocumentException e) {
-            throw new RuntimeException(e);
+        if (!booking.getUserId().equals(userId)) {
+            throw new RuntimeException("Unauthorized ticket access");
         }
 
-        return output.toByteArray();
+        if (booking.getStatus() != BookingStatus.BOOKED) {
+            throw new RuntimeException("Ticket is available only for booked seats");
+        }
+
+        return booking;
     }
 
+    private String generateQrCodeBase64(String data) {
+        try {
+            int size = 300;
+            BitMatrix matrix = new MultiFormatWriter().encode(data, BarcodeFormat.QR_CODE, size, size);
 
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            MatrixToImageWriter.writeToStream(matrix, "png", out);
+            return Base64.getEncoder().encodeToString(out.toByteArray());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate ticket QR code", e);
+        }
+    }
 }

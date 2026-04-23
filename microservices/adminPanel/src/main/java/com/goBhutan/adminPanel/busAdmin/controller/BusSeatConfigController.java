@@ -6,6 +6,8 @@ import com.goBhutan.adminPanel.busAdmin.service.BusSeatConfigService;
 import com.goBhutan.adminPanel.common.dto.ApiResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -41,7 +43,10 @@ public class BusSeatConfigController {
     @PostMapping("/generate-seats")
     public ResponseEntity<?> generateLayout(@PathVariable Long busId,@RequestParam(defaultValue = "false") boolean forceRegenerate) {
         try {
-            List<BusSeatConfig> seats = seatConfigService.generateSeatLayout(busId, forceRegenerate);
+            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String adminUserId = principal.getSubject();
+
+            List<BusSeatConfig> seats = seatConfigService.generateSeatLayout(busId, forceRegenerate, adminUserId);
             return ResponseEntity.ok(seats);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));

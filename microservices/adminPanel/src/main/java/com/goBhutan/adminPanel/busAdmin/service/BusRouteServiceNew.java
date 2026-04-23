@@ -56,6 +56,21 @@ public class BusRouteServiceNew {
         BusRoute br = busRouteRepository.findByIdAndBus_AdminUserId(id, adminUserId)
                 .orElseThrow(() -> new RuntimeException("Route not found"));
 
+        if (!br.getBus().getId().equals(req.getBusId())) {
+            throw new RuntimeException("Route cannot be moved to a different bus");
+        }
+
+        boolean willBeActive = req.getActive() != null ? req.getActive() : br.getActive();
+        if (willBeActive && busRouteRepository.existsByBusAndDepartureTimeAndSourceAndDestinationAndActiveTrueAndIdNot(
+                br.getBus(),
+                req.getDepartureTime(),
+                req.getSource(),
+                req.getDestination(),
+                br.getId()
+        )) {
+            throw new RuntimeException("Route already exists for this bus at the specified departure time.");
+        }
+
         br.setSource(req.getSource());
         br.setDestination(req.getDestination());
         br.setDistance(req.getDistance());
