@@ -26,8 +26,10 @@ public class BusSeatConfigService {
 
     private static final Logger log = LoggerFactory.getLogger(BusSeatConfigService.class);
 
-    public List<BusSeatConfig> getConfigsByBus(Long busId) {
-        return seatConfigRepository.findByBus_Id(busId);
+    public List<BusSeatConfig> getConfigsByBus(Long busId, String adminUserId) {
+        busRepository.findByIdAndAdminUserId(busId, adminUserId)
+                .orElseThrow(() -> new RuntimeException("Bus not found with ID: " + busId));
+        return seatConfigRepository.findByBus_IdOrderByStartNoAsc(busId);
     }
 
 
@@ -62,7 +64,7 @@ public class BusSeatConfigService {
             throw new IllegalArgumentException("Calculated total rows cannot be less than 1.");
         }
 
-        List<BusSeatConfig> existing = seatConfigRepository.findByBus_Id(busId);
+        List<BusSeatConfig> existing = seatConfigRepository.findByBus_IdOrderByStartNoAsc(busId);
         if (!existing.isEmpty()) {
             if (forceRegenerate) {
                 seatConfigRepository.deleteAll(existing);

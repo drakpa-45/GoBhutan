@@ -27,6 +27,13 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
             PaymentTransactionType transactionType,
             PaymentStatus status
     );
+    Optional<PaymentTransaction> findFirstByUserIdAndParentPaymentRefAndReferenceTypeAndTransactionTypeAndStatus(
+            String userId,
+            String parentPaymentRef,
+            String referenceType,
+            PaymentTransactionType transactionType,
+            PaymentStatus status
+    );
 
     @Query("""
             SELECT COALESCE(SUM(p.amount), 0)
@@ -36,9 +43,24 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
               AND p.transactionType = :transactionType
               AND p.status = :status
             """)
-    BigDecimal sumAmountByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
+            BigDecimal sumAmountByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
             String userId,
             String parentPaymentRef,
+            PaymentTransactionType transactionType,
+            PaymentStatus status
+    );
+
+    @Query("""
+            SELECT COALESCE(SUM(p.amount), 0)
+            FROM PaymentTransaction p
+            WHERE p.parentPaymentRef = :parentPaymentRef
+              AND p.referenceType = :referenceType
+              AND p.transactionType = :transactionType
+              AND p.status = :status
+            """)
+    BigDecimal sumAmountByParentPaymentRefAndReferenceTypeAndTransactionTypeAndStatus(
+            String parentPaymentRef,
+            String referenceType,
             PaymentTransactionType transactionType,
             PaymentStatus status
     );

@@ -1,15 +1,9 @@
 package com.goBhutan.adminPanel.busAdmin.controller;
 
+import com.goBhutan.adminPanel.busAdmin.dto.BusTicketResponse;
 import com.goBhutan.adminPanel.busAdmin.dto.ConfirmBookingRequest;
 import com.goBhutan.adminPanel.busAdmin.dto.LockSeatRequest;
-import com.goBhutan.adminPanel.busAdmin.dto.BusTicketResponse;
-import com.goBhutan.adminPanel.busAdmin.entity.Bus;
-import com.goBhutan.adminPanel.busAdmin.entity.BusSeatConfig;
-import com.goBhutan.adminPanel.busAdmin.entity.Schedule;
 import com.goBhutan.adminPanel.busAdmin.entity.SeatBooking;
-import com.goBhutan.adminPanel.busAdmin.enums.BookingStatus;
-import com.goBhutan.adminPanel.busAdmin.repository.BusScheduleRepository;
-import com.goBhutan.adminPanel.busAdmin.repository.SeatBookingRepository;
 import com.goBhutan.adminPanel.busAdmin.service.BusBookingService;
 import com.goBhutan.adminPanel.busAdmin.service.TicketService;
 import com.goBhutan.adminPanel.common.dto.ApiResponse;
@@ -20,11 +14,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/bookings")
@@ -32,15 +23,11 @@ import java.util.stream.Collectors;
 public class BusBookingController {
 
     private final BusBookingService bookingService;
-    private final SeatBookingRepository bookingRepo;
-    private final BusScheduleRepository scheduleRepo;
     private final TicketService ticketService;
 
     @PostMapping("/lock")
     public ResponseEntity<?> lock(@RequestBody LockSeatRequest req) {
-
-        Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        String userId = jwt.getSubject();
+        String userId = currentUserId();
 
         List<SeatBooking> bookings = bookingService.lockSeats(
                 req.getScheduleId(),
@@ -55,14 +42,15 @@ public class BusBookingController {
                 "bookingRef", bookings.get(0).getBookingRef(),
                 "seatLabel", bookings.get(0).getSeatLabel(),
                 "expiresAt", bookings.get(0).getLockExpiry(),
-                "totalAmount", bookings.get(0).getSchedule().getPrice().multiply(BigDecimal.valueOf(bookings.size())),
+                "totalAmount", bookings.stream()
+                        .map(SeatBooking::getFinalFareAtBooking)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add),
                 "seats", bookings));
     }
 
     @PostMapping("/confirm")
     public ResponseEntity<?> confirm(@RequestBody ConfirmBookingRequest req) {
-        Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        String userId = jwt.getSubject();
+        String userId = currentUserId();
 
         List<SeatBooking> bookings = bookingService.confirmBooking(req.getBookingRef(), userId);
 
@@ -80,8 +68,7 @@ public class BusBookingController {
 
     @PostMapping("/cancel/{bookingId}")
     public ResponseEntity<?> cancel(@PathVariable Long bookingId) {
-        Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        String userId = jwt.getSubject();
+        String userId = currentUserId();
 
         SeatBooking booking = bookingService.cancel(bookingId, userId);
 
@@ -92,58 +79,12 @@ public class BusBookingController {
 
     @GetMapping("/schedule/{scheduleId}/seats")
     public ResponseEntity<?> getSeatStatus(@PathVariable Long scheduleId) {
-
-        Schedule schedule = scheduleRepo.findById(scheduleId)
-                .orElseThrow(() -> new RuntimeException("Schedule not found"));
-        Bus bus = schedule.getBus();
-
-        // Create seat layout based on BusSeatConfig
-        List<Map<String, Object>> seats = new ArrayList<>();
-
-        // All booked/locked
-        List<SeatBooking> bookings = bookingRepo.findByScheduleId(scheduleId);
-        Map<Integer, SeatBooking> bookingMap = bookings.stream()
-                .collect(Collectors.toMap(SeatBooking::getSeatNumber, b -> b));
-
-        // Build seat map
-        for (int i = 1; i <= bus.getTotalSeats(); i++) {
-            SeatBooking b = bookingMap.get(i);
-
-            String status = "AVAILABLE";
-            if (b != null) {
-                if (b.getStatus() == BookingStatus.BOOKED)
-                    status = "BOOKED";
-                else if (b.getStatus() == BookingStatus.LOCKED
-                        && b.getLockExpiry() != null
-                        && b.getLockExpiry().isAfter(LocalDateTime.now()))
-                    status = "LOCKED";
-            }
-            String seatLabel = getSeatLabel(bus, i);
-
-            seats.add(Map.of(
-                    "seatNumber", i,
-                    "seatLabel", seatLabel,
-                    "status", status));
-        }
-
-        return ResponseEntity.ok(seats);
-    }
-
-    private String getSeatLabel(Bus bus, int seatNumber) {
-        for (BusSeatConfig config : bus.getSeatConfigs()) {
-            if (seatNumber >= config.getStartNo() && seatNumber <= config.getEndNo()) {
-                return config.getSeatLabel();
-            }
-        }
-        return "Seat " + seatNumber;
+        return ResponseEntity.ok(bookingService.getSeatStatus(scheduleId));
     }
 
     @GetMapping("/ticket/{bookingId}")
     public ResponseEntity<ApiResponse<BusTicketResponse>> getTicket(@PathVariable Long bookingId) {
-        Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        String userId = jwt.getSubject();
-
-        return ResponseEntity.ok(ApiResponse.success(ticketService.getTicketDetails(bookingId, userId)));
+        return ResponseEntity.ok(ApiResponse.success(ticketService.getTicketDetails(bookingId, currentUserId())));
     }
 
     @GetMapping("/admin/schedule/{id}/manifest")
@@ -153,5 +94,10 @@ public class BusBookingController {
         String adminUserId = jwt.getSubject();
 
         return ResponseEntity.ok(bookingService.getManifestForSchedule(id, adminUserId));
+    }
+
+    private String currentUserId() {
+        Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return jwt.getSubject();
     }
 }

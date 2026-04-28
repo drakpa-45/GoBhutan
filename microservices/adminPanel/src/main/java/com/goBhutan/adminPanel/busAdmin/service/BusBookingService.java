@@ -2,12 +2,15 @@ package com.goBhutan.adminPanel.busAdmin.service;
 
 import com.goBhutan.adminPanel.busAdmin.dto.ManifestItem;
 import com.goBhutan.adminPanel.busAdmin.entity.Bus;
+import com.goBhutan.adminPanel.busAdmin.entity.BusRoute;
 import com.goBhutan.adminPanel.busAdmin.entity.BusSeatConfig;
 import com.goBhutan.adminPanel.busAdmin.entity.Schedule;
 import com.goBhutan.adminPanel.busAdmin.entity.SeatBooking;
 import com.goBhutan.adminPanel.busAdmin.enums.BookingStatus;
 import com.goBhutan.adminPanel.busAdmin.repository.BusScheduleRepository;
 import com.goBhutan.adminPanel.busAdmin.repository.SeatBookingRepository;
+import com.goBhutan.adminPanel.common.entity.AppUser;
+import com.goBhutan.adminPanel.common.service.AppUserService;
 import com.goBhutan.adminPanel.paymentInt.dto.WalletPaymentRequest;
 import com.goBhutan.adminPanel.paymentInt.dto.WalletPaymentResult;
 import com.goBhutan.adminPanel.paymentInt.service.PaymentIntegrationService;
@@ -22,16 +25,23 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 @Service
 @Transactional
 @RequiredArgsConstructor
 public class BusBookingService {
 
+    private static final String APP_OWNER_USERNAME = "YAYAOWNER";
+    private static final String BUS_BOOKING_REFERENCE_TYPE = "BUS_BOOKING";
+    private static final String BUS_APP_CHARGE_REFERENCE_TYPE = "BUS_APP_CHARGE";
+
     private final BusScheduleRepository scheduleRepo;
     private final SeatBookingRepository bookingRepo;
     private final SeatBroadcastService broadcastService;
     private final PaymentIntegrationService paymentService;
+    private final AppUserService appUserService;
 
 
     /**
@@ -61,17 +71,18 @@ public class BusBookingService {
 
         // Step 2 — Lock parent schedule
         Schedule schedule = scheduleRepo.lockSchedule(scheduleId);
+        ensureScheduleBookable(schedule);
         Bus bus = schedule.getBus();
-
-        if (Boolean.FALSE.equals(schedule.getActive())) {
-            throw new RuntimeException("Schedule is not active");
-        }
 
         if (schedule.getDepartureTime() != null && !schedule.getDepartureTime().isAfter(now)) {
             throw new RuntimeException("Cannot book seats for a departed schedule");
         }
 
         // Step 3 — Single booking ref for single/multiple seats
+        BigDecimal baseFare = getBaseFare(schedule);
+        BigDecimal appCharges = getAppCharges(schedule);
+        BigDecimal finalFare = getScheduleFare(schedule);
+
         String bookingRef = UUID.randomUUID().toString();
         LocalDateTime lockExpiry = now.plusMinutes(5);
 
@@ -113,6 +124,7 @@ public class BusBookingService {
             booking.setWalletPaymentRef(null);
             booking.setStatus(BookingStatus.LOCKED);
             booking.setLockExpiry(lockExpiry);
+            applyFareSnapshot(booking, baseFare, appCharges, finalFare);
 
             bookingList.add(booking);
         }
@@ -123,6 +135,45 @@ public class BusBookingService {
         broadcastService.broadcastSeatUpdate(scheduleId);
 
         return saved;
+    }
+
+    public List<Map<String, Object>> getSeatStatus(Long scheduleId) {
+        Schedule schedule = scheduleRepo.findById(scheduleId)
+                .orElseThrow(() -> new RuntimeException("Schedule not found"));
+        ensureScheduleBookable(schedule);
+
+        LocalDateTime now = LocalDateTime.now();
+        if (schedule.getDepartureTime() != null && !schedule.getDepartureTime().isAfter(now)) {
+            throw new RuntimeException("Cannot view seats for a departed schedule");
+        }
+
+        Bus bus = schedule.getBus();
+        List<SeatBooking> bookings = bookingRepo.findByScheduleId(scheduleId);
+        Map<Integer, SeatBooking> bookingMap = bookings.stream()
+                .collect(Collectors.toMap(SeatBooking::getSeatNumber, b -> b));
+
+        List<Map<String, Object>> seats = new ArrayList<>();
+        for (int i = 1; i <= bus.getTotalSeats(); i++) {
+            SeatBooking booking = bookingMap.get(i);
+
+            String status = "AVAILABLE";
+            if (booking != null) {
+                if (booking.getStatus() == BookingStatus.BOOKED) {
+                    status = "BOOKED";
+                } else if (booking.getStatus() == BookingStatus.LOCKED
+                        && booking.getLockExpiry() != null
+                        && booking.getLockExpiry().isAfter(now)) {
+                    status = "LOCKED";
+                }
+            }
+
+            seats.add(Map.of(
+                    "seatNumber", i,
+                    "seatLabel", getSeatLabel(bus, i),
+                    "status", status));
+        }
+
+        return seats;
     }
 
 
@@ -147,16 +198,16 @@ public class BusBookingService {
             throw new RuntimeException("Seat lock expired");
 
         Schedule schedule = scheduleRepo.lockSchedule(bookings.get(0).getSchedule().getId());
-
-        if (Boolean.FALSE.equals(schedule.getActive())) {
-            throw new RuntimeException("Schedule is not active");
-        }
+        ensureScheduleBookable(schedule);
 
         if (schedule.getDepartureTime() != null && !schedule.getDepartureTime().isAfter(now)) {
             throw new RuntimeException("Cannot confirm seats for a departed schedule");
         }
 
-        BigDecimal totalAmount = schedule.getPrice().multiply(BigDecimal.valueOf(bookings.size()));
+        ensureBookingFareSnapshots(bookings, schedule);
+        BigDecimal totalAmount = sumFinalFare(bookings);
+        BigDecimal ownerSettlementAmount = sumBaseFare(bookings);
+        BigDecimal appChargeSettlementAmount = sumAppCharges(bookings);
 
         if (bookings.stream().anyMatch(b -> b.getWalletPaymentRef() != null && !b.getWalletPaymentRef().isBlank()))
             throw new RuntimeException("Wallet payment already processed for this booking");
@@ -165,21 +216,35 @@ public class BusBookingService {
         paymentRequest.setAmount(totalAmount);
         paymentRequest.setCurrency("BTN");
         paymentRequest.setServiceName("BUS");
-        paymentRequest.setReferenceType("BUS_BOOKING");
+        paymentRequest.setReferenceType(BUS_BOOKING_REFERENCE_TYPE);
         paymentRequest.setReferenceId(bookingRef);
         paymentRequest.setDescription("Bus booking payment");
 
         WalletPaymentResult walletPayment = paymentService.payWithWallet(paymentRequest, userId);
 
-        paymentService.creditServiceSettlement(
-                walletPayment.getPaymentRef(),
-                totalAmount,
-                "BUS",
-                "BUS_BOOKING",
-                bookingRef,
-                "Bus booking settlement",
-                schedule.getBus().getAdminUserId()
-        );
+        if (ownerSettlementAmount.compareTo(BigDecimal.ZERO) > 0) {
+            paymentService.creditServiceSettlement(
+                    walletPayment.getPaymentRef(),
+                    ownerSettlementAmount,
+                    "BUS",
+                    BUS_BOOKING_REFERENCE_TYPE,
+                    bookingRef,
+                    "Bus booking fare settlement",
+                    schedule.getBus().getAdminUserId()
+            );
+        }
+
+        if (appChargeSettlementAmount.compareTo(BigDecimal.ZERO) > 0) {
+            paymentService.creditServiceSettlement(
+                    walletPayment.getPaymentRef(),
+                    appChargeSettlementAmount,
+                    "BUS",
+                    BUS_APP_CHARGE_REFERENCE_TYPE,
+                    bookingRef,
+                    "Bus booking app charge settlement",
+                    getAppOwnerUserId()
+            );
+        }
 
         // Confirm seats
         for (SeatBooking b : bookings) {
@@ -244,25 +309,46 @@ public class BusBookingService {
                 throw new RuntimeException("No paid seats found for cancellation");
             }
 
+            BigDecimal seatCount = BigDecimal.valueOf(paidSeatCount);
             BigDecimal originalPaidAmount = paymentService.getSuccessfulServicePaymentAmount(walletPaymentRef, userId);
-            BigDecimal refundAmount = originalPaidAmount
-                    .divide(BigDecimal.valueOf(paidSeatCount), 2, RoundingMode.HALF_UP);
+            BigDecimal refundAmount = fareOrFallback(targetBooking.getFinalFareAtBooking(),
+                    originalPaidAmount.divide(seatCount, 2, RoundingMode.HALF_UP));
+            BigDecimal ownerReversalAmount = fareOrFallback(targetBooking.getBaseFareAtBooking(),
+                    paymentService.getSuccessfulSettlementAmount(walletPaymentRef, BUS_BOOKING_REFERENCE_TYPE)
+                            .divide(seatCount, 2, RoundingMode.HALF_UP));
+            BigDecimal appChargeReversalAmount = fareOrFallback(targetBooking.getAppChargesAtBooking(),
+                    paymentService.getSuccessfulSettlementAmount(walletPaymentRef, BUS_APP_CHARGE_REFERENCE_TYPE)
+                            .divide(seatCount, 2, RoundingMode.HALF_UP));
 
-            paymentService.reverseServiceSettlement(
-                    walletPaymentRef,
-                    refundAmount,
-                    "BUS",
-                    "BUS_BOOKING",
-                    targetBooking.getBookingRef(),
-                    "Bus booking settlement reversal",
-                    schedule.getBus().getAdminUserId()
-            );
+            if (ownerReversalAmount.compareTo(BigDecimal.ZERO) > 0) {
+                paymentService.reverseServiceSettlement(
+                        walletPaymentRef,
+                        ownerReversalAmount,
+                        "BUS",
+                        BUS_BOOKING_REFERENCE_TYPE,
+                        targetBooking.getBookingRef(),
+                        "Bus booking fare settlement reversal",
+                        schedule.getBus().getAdminUserId()
+                );
+            }
+
+            if (appChargeReversalAmount.compareTo(BigDecimal.ZERO) > 0) {
+                paymentService.reverseServiceSettlement(
+                        walletPaymentRef,
+                        appChargeReversalAmount,
+                        "BUS",
+                        BUS_APP_CHARGE_REFERENCE_TYPE,
+                        targetBooking.getBookingRef(),
+                        "Bus booking app charge settlement reversal",
+                        getAppOwnerUserId()
+                );
+            }
 
             paymentService.refundToWallet(
                     walletPaymentRef,
                     refundAmount,
                     "BUS",
-                    "BUS_BOOKING",
+                    BUS_BOOKING_REFERENCE_TYPE,
                     targetBooking.getBookingRef(),
                     "Bus booking refund",
                     userId
@@ -315,6 +401,102 @@ public class BusBookingService {
         if (seatNumber == null || seatNumber < 1 || totalSeats == null || seatNumber > totalSeats) {
             throw new RuntimeException("Invalid seat number: " + seatNumber);
         }
+    }
+
+    private void ensureScheduleBookable(Schedule schedule) {
+        if (schedule == null) {
+            throw new RuntimeException("Schedule not found");
+        }
+        if (!Boolean.TRUE.equals(schedule.getActive())) {
+            throw new RuntimeException("Schedule is not active");
+        }
+        Bus bus = schedule.getBus();
+        if (bus == null || Boolean.FALSE.equals(bus.getIsActive())) {
+            throw new RuntimeException("Bus is not active");
+        }
+        BusRoute route = schedule.getRoute();
+        if (route == null || !Boolean.TRUE.equals(route.getActive())) {
+            throw new RuntimeException("Route is not active");
+        }
+    }
+
+    private BigDecimal getScheduleFare(Schedule schedule) {
+        if (schedule == null || schedule.getFinalFare() == null) {
+            throw new RuntimeException("Schedule fare is not configured");
+        }
+        return money(schedule.getFinalFare());
+    }
+
+    private BigDecimal getBaseFare(Schedule schedule) {
+        if (schedule == null || schedule.getBaseFare() == null) {
+            throw new RuntimeException("Schedule base fare is not configured");
+        }
+        return money(schedule.getBaseFare());
+    }
+
+    private BigDecimal getAppCharges(Schedule schedule) {
+        if (schedule == null) {
+            throw new RuntimeException("Schedule route is not configured");
+        }
+        return money(schedule.getAppCharges());
+    }
+
+    private void ensureBookingFareSnapshots(List<SeatBooking> bookings, Schedule schedule) {
+        BigDecimal baseFare = getBaseFare(schedule);
+        BigDecimal appCharges = getAppCharges(schedule);
+        BigDecimal finalFare = getScheduleFare(schedule);
+
+        for (SeatBooking booking : bookings) {
+            if (booking.getBaseFareAtBooking() == null
+                    || booking.getAppChargesAtBooking() == null
+                    || booking.getFinalFareAtBooking() == null) {
+                applyFareSnapshot(booking, baseFare, appCharges, finalFare);
+            }
+        }
+    }
+
+    private void applyFareSnapshot(SeatBooking booking, BigDecimal baseFare, BigDecimal appCharges, BigDecimal finalFare) {
+        booking.setBaseFareAtBooking(money(baseFare));
+        booking.setAppChargesAtBooking(money(appCharges));
+        booking.setFinalFareAtBooking(money(finalFare));
+    }
+
+    private BigDecimal sumFinalFare(List<SeatBooking> bookings) {
+        return bookings.stream()
+                .map(SeatBooking::getFinalFareAtBooking)
+                .map(this::money)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal sumBaseFare(List<SeatBooking> bookings) {
+        return bookings.stream()
+                .map(SeatBooking::getBaseFareAtBooking)
+                .map(this::money)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal sumAppCharges(List<SeatBooking> bookings) {
+        return bookings.stream()
+                .map(SeatBooking::getAppChargesAtBooking)
+                .map(this::money)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal fareOrFallback(BigDecimal fare, BigDecimal fallback) {
+        return fare != null ? money(fare) : money(fallback);
+    }
+
+    private BigDecimal money(BigDecimal value) {
+        return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private String getAppOwnerUserId() {
+        AppUser appOwner = appUserService.findByUsername(APP_OWNER_USERNAME)
+                .orElseThrow(() -> new RuntimeException("App owner user not found: " + APP_OWNER_USERNAME));
+        if (appOwner.getKeycloakId() == null || appOwner.getKeycloakId().isBlank()) {
+            throw new RuntimeException("App owner Keycloak ID is not configured: " + APP_OWNER_USERNAME);
+        }
+        return appOwner.getKeycloakId();
     }
 
 }

@@ -3,7 +3,6 @@ package com.goBhutan.adminPanel.busAdmin.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goBhutan.adminPanel.busAdmin.dto.BusRegistrationRequest;
 import com.goBhutan.adminPanel.busAdmin.dto.BusResponseDTO;
-import com.goBhutan.adminPanel.busAdmin.dto.BusRouteResponse;
 import com.goBhutan.adminPanel.busAdmin.entity.Bus;
 import com.goBhutan.adminPanel.busAdmin.service.BusService;
 import com.goBhutan.adminPanel.common.dto.ApiResponse;
@@ -33,7 +32,8 @@ public class BusRegistrationController {
     private BusService busService;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<Bus>> registerBus(@Valid @RequestBody BusRegistrationRequest busRegistrationRequest, HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<Bus>> registerBus(
+            @Valid @RequestBody BusRegistrationRequest busRegistrationRequest, HttpServletRequest request) {
         try {
             Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             String adminUserId = principal.getSubject();
@@ -52,6 +52,16 @@ public class BusRegistrationController {
             String adminUserId = principal.getSubject();
 
             List<Bus> buses = busService.getBusesByOwner(adminUserId);
+            return ResponseEntity.ok(ApiResponse.success(buses));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @GetMapping("/active")
+    public ResponseEntity<ApiResponse<List<Bus>>> getActiveBuses() {
+        try {
+            List<Bus> buses = busService.getActiveBuses();
             return ResponseEntity.ok(ApiResponse.success(buses));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
@@ -85,11 +95,10 @@ public class BusRegistrationController {
         }
     }
 
-
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<Bus>> updateBus(@PathVariable Long id,
-                                                      @Valid @RequestBody BusRegistrationRequest busRegistrationRequest,
-                                                      HttpServletRequest request) {
+            @Valid @RequestBody BusRegistrationRequest busRegistrationRequest,
+            HttpServletRequest request) {
         try {
             Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             String adminUserId = principal.getSubject();
@@ -106,14 +115,15 @@ public class BusRegistrationController {
             Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             String adminUserId = principal.getSubject();
             busService.deleteBus(id, adminUserId);
-            return ResponseEntity.ok(ApiResponse.success("Bus deleted successfully", "Bus deleted"));
+            return ResponseEntity.ok(ApiResponse.success("Bus deactivated successfully", "Bus deactivated"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 
     @GetMapping(value = "/healthCheck", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String healthCheck(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    public @ResponseBody String healthCheck(HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
         ObjectMapper objectMapper = new ObjectMapper();
 
         String token = resolveBearerToken(request);
@@ -122,25 +132,24 @@ public class BusRegistrationController {
         if (token == null) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return objectMapper.writeValueAsString(
-                    Map.of("status", "UNAUTHORIZED", "message", "Missing Bearer token")
-            );
+                    Map.of("status", "UNAUTHORIZED", "message", "Missing Bearer token"));
         }
         try {
             response.setStatus(HttpServletResponse.SC_OK);
             return objectMapper.writeValueAsString(
-                    Map.of("status", "OK", "message", "Token received", "tokenSnippet", token.substring(0, Math.min(16, token.length())) + "…")
-            );
+                    Map.of("status", "OK", "message", "Token received", "tokenSnippet",
+                            token.substring(0, Math.min(16, token.length())) + "…"));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return objectMapper.writeValueAsString(
-                    Map.of("status", "UNAUTHORIZED", "message", "Invalid or expired token")
-            );
+                    Map.of("status", "UNAUTHORIZED", "message", "Invalid or expired token"));
         }
     }
 
     private String resolveBearerToken(HttpServletRequest request) {
         String auth = request.getHeader("Authorization");
-        if (auth == null) auth = request.getHeader("authorization");
+        if (auth == null)
+            auth = request.getHeader("authorization");
         if (auth != null) {
             auth = auth.trim();
             if (auth.toLowerCase().startsWith("bearer ")) {
@@ -148,7 +157,8 @@ public class BusRegistrationController {
             }
         }
         String qp = request.getParameter("access_token");
-        if (qp != null && !qp.trim().isEmpty()) return qp.trim();
+        if (qp != null && !qp.trim().isEmpty())
+            return qp.trim();
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {
             for (Cookie c : cookies) {
@@ -157,8 +167,10 @@ public class BusRegistrationController {
                     String v = c.getValue();
                     if (v != null) {
                         v = v.trim();
-                        if (v.toLowerCase().startsWith("bearer ")) v = v.substring(7).trim();
-                        if (!v.isEmpty()) return v;
+                        if (v.toLowerCase().startsWith("bearer "))
+                            v = v.substring(7).trim();
+                        if (!v.isEmpty())
+                            return v;
                     }
                 }
             }

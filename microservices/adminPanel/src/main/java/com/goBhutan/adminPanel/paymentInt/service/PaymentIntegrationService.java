@@ -46,6 +46,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PaymentIntegrationService {
 
+    private static final int MAX_STATUS_CHECK_COUNT = 3;
+    private static final long STATUS_POLL_DELAY_MINUTES = 6;
+    private static final long STATUS_POLL_INTERVAL_SECONDS = 60;
+
     private final PaymentTransactionRepository transactionRepository;
     private final WalletAccountRepository walletAccountRepository;
     private final WalletLedgerRepository walletLedgerRepository;
@@ -388,6 +392,18 @@ public class PaymentIntegrationService {
         return original.getAmount();
     }
 
+    public BigDecimal getSuccessfulSettlementAmount(String originalPaymentRef, String referenceType) {
+        if (isBlank(referenceType)) {
+            throw new RuntimeException("referenceType is required");
+        }
+        return transactionRepository.sumAmountByParentPaymentRefAndReferenceTypeAndTransactionTypeAndStatus(
+                originalPaymentRef,
+                referenceType.trim(),
+                PaymentTransactionType.SERVICE_SETTLEMENT,
+                PaymentStatus.SUCCESS
+        );
+    }
+
     public WalletPaymentResult creditServiceSettlement(
             String originalPaymentRef,
             BigDecimal amount,
@@ -411,9 +427,10 @@ public class PaymentIntegrationService {
             throw new RuntimeException("Original transaction is not a successful service payment");
         }
 
-        if (transactionRepository.findFirstByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
+        if (transactionRepository.findFirstByUserIdAndParentPaymentRefAndReferenceTypeAndTransactionTypeAndStatus(
                 recipientUserId,
                 originalPaymentRef,
+                referenceType,
                 PaymentTransactionType.SERVICE_SETTLEMENT,
                 PaymentStatus.SUCCESS
         ).isPresent()) {
@@ -487,9 +504,10 @@ public class PaymentIntegrationService {
         }
 
         PaymentTransaction settlementTxn = transactionRepository
-                .findFirstByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
+                .findFirstByUserIdAndParentPaymentRefAndReferenceTypeAndTransactionTypeAndStatus(
                         recipientUserId,
                         originalPaymentRef,
+                        referenceType,
                         PaymentTransactionType.SERVICE_SETTLEMENT,
                         PaymentStatus.SUCCESS
                 )
@@ -578,12 +596,15 @@ public class PaymentIntegrationService {
 
     public PaymentStatusResponse getTopupStatus(String paymentRef, String userId) {
         PaymentTransaction transaction = getOwnedTopup(paymentRef, userId);
-        expireIfNeeded(transaction);
 
-        if (transaction.getStatus() == PaymentStatus.PENDING && shouldPollStatus(transaction)) {
-            pollGatewayStatus(transaction);
+        if (transaction.getStatus() == PaymentStatus.PENDING && transaction.getDebitRequestedAt() != null) {
+            if (shouldPollStatus(transaction)) {
+                pollGatewayStatus(transaction);
+            }
+            return toPaymentStatus(transaction);
         }
 
+        expireIfNeeded(transaction);
         return toPaymentStatus(transaction);
     }
 
@@ -591,12 +612,14 @@ public class PaymentIntegrationService {
         PaymentWalletConfig config = buildRuntimeConfig("SYSTEM");
         BfsGatewayResponse bfsResponse = walletGatewayClient.checkStatus(config, transaction);
 
-        transaction.setStatusCheckCount(transaction.getStatusCheckCount() + 1);
+        transaction.setStatusCheckCount(statusCheckCount(transaction) + 1);
+        transaction.setLastStatusCheckedAt(LocalDateTime.now());
         transaction.setRawAsRequest(bfsResponse.getRawRequest());
         transaction.setRawAsResponse(bfsResponse.getRawResponse());
         applyDebitResult(transaction, bfsResponse);
 
-        if (transaction.getStatus() == PaymentStatus.PENDING && transaction.getStatusCheckCount() >= 3) {
+        if (transaction.getStatus() == PaymentStatus.PENDING
+                && statusCheckCount(transaction) >= MAX_STATUS_CHECK_COUNT) {
             transaction
                     .setProviderMessage("No final BFS response after 3 status checks; manual reconciliation required");
         }
@@ -604,10 +627,21 @@ public class PaymentIntegrationService {
     }
 
     private boolean shouldPollStatus(PaymentTransaction transaction) {
+        LocalDateTime now = LocalDateTime.now();
         return transaction.getDebitRequestedAt() != null
                 && transaction.getWalletCreditedAt() == null
-                && transaction.getStatusCheckCount() < 3
-                && LocalDateTime.now().isAfter(transaction.getDebitRequestedAt().plusMinutes(6));
+                && statusCheckCount(transaction) < MAX_STATUS_CHECK_COUNT
+                && now.isAfter(transaction.getDebitRequestedAt().plusMinutes(STATUS_POLL_DELAY_MINUTES))
+                && isStatusPollIntervalElapsed(transaction, now);
+    }
+
+    private boolean isStatusPollIntervalElapsed(PaymentTransaction transaction, LocalDateTime now) {
+        return transaction.getLastStatusCheckedAt() == null
+                || !now.isBefore(transaction.getLastStatusCheckedAt().plusSeconds(STATUS_POLL_INTERVAL_SECONDS));
+    }
+
+    private int statusCheckCount(PaymentTransaction transaction) {
+        return transaction.getStatusCheckCount() == null ? 0 : transaction.getStatusCheckCount();
     }
 
     private void applyDebitResult(PaymentTransaction transaction, BfsGatewayResponse bfsResponse) {
@@ -667,7 +701,7 @@ public class PaymentIntegrationService {
     private boolean expireIfNeeded(PaymentTransaction transaction) {
         if (transaction.getExpiresAt() != null
                 && transaction.getExpiresAt().isBefore(LocalDateTime.now())
-                && transaction.getStatus() != PaymentStatus.SUCCESS) {
+                && transaction.getStatus() == PaymentStatus.PENDING) {
             transaction.setStatus(PaymentStatus.EXPIRED);
             transaction.setProviderMessage("Topup session expired");
             transactionRepository.save(transaction);

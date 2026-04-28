@@ -7,11 +7,13 @@ import com.goBhutan.adminPanel.common.dto.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -21,6 +23,7 @@ import java.util.List;
 public class BusRouteControllerNew {
     @Autowired
     private BusRouteServiceNew busRouteService;
+
     @PostMapping
     public ResponseEntity<ApiResponse<BusRouteResponse>> create(@Valid @RequestBody BusRouteRequest request) {
 
@@ -68,6 +71,21 @@ public class BusRouteControllerNew {
         busRouteService.softDeleteRoute(id, adminUserId);
 
         return ResponseEntity.ok(ApiResponse.success("Bus route deleted successfully", "DELETED"));
+    }
+
+    // ----------------------- APP USER SEARCH -----------------------
+    @GetMapping("/active/search")
+    public ResponseEntity<ApiResponse<List<BusRouteResponse>>> searchActiveRoutesByRoute(
+            @RequestParam String source,
+            @RequestParam String destination,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        try {
+            List<BusRouteResponse> routes = busRouteService
+                    .getActiveRoutesBySourceAndDestination(source, destination, date);
+            return ResponseEntity.ok(ApiResponse.success(routes));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
 
     // ----------------------- GET ONE -----------------------
