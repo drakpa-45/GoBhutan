@@ -12,6 +12,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
@@ -58,6 +59,9 @@ public class Bus {
     @Column(name = "layout_type")
     private String layoutType; // e.g., 19 ="1+2", 32="2+2", 40="2+3"
 
+    @Column(name = "is_active")
+    private Boolean isActive = true;
+
     // ===================== UNIFIED BUS ROUTES =====================
     @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonIgnore
@@ -78,9 +82,21 @@ public class Bus {
     @Column(name = "recurrence_type", nullable = false)
     private RecurrenceType recurrenceType = RecurrenceType.DAILY;
 
+    @Column(name = "schedule_anchor_date")
+    private LocalDate scheduleAnchorDate;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "tbl_bs_operating_days", joinColumns = @JoinColumn(name = "bus_id"))
     @Column(name = "day_of_week")
     @Enumerated(EnumType.STRING)
     private Set<DayOfWeek> operatingDays = new HashSet<>();
+
+    @PrePersist
+    @PreUpdate
+    @PostLoad
+    public void defaultActiveStatus() {
+        if (isActive == null) {
+            isActive = true;
+        }
+    }
 }

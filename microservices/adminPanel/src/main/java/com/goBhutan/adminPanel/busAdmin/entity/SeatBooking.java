@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -53,6 +54,15 @@ public class SeatBooking {
 
     @Column(name = "wallet_payment_ref", length = 120)
     private String walletPaymentRef;
+
+    @Column(name = "base_fare_at_booking", precision = 10, scale = 2)
+    private BigDecimal baseFareAtBooking;
+
+    @Column(name = "app_charges_at_booking", precision = 10, scale = 2)
+    private BigDecimal appChargesAtBooking;
+
+    @Column(name = "final_fare_at_booking", precision = 10, scale = 2)
+    private BigDecimal finalFareAtBooking;
 
     @CreationTimestamp
     private LocalDateTime createdAt;

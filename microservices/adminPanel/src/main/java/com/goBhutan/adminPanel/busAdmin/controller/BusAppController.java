@@ -1,32 +1,75 @@
 package com.goBhutan.adminPanel.busAdmin.controller;
 
+import com.goBhutan.adminPanel.busAdmin.dto.AppScheduleResponse;
+import com.goBhutan.adminPanel.busAdmin.dto.BusRouteResponse;
 import com.goBhutan.adminPanel.busAdmin.dto.BusTicketResponse;
 import com.goBhutan.adminPanel.busAdmin.dto.ConfirmBookingRequest;
 import com.goBhutan.adminPanel.busAdmin.dto.LockSeatRequest;
 import com.goBhutan.adminPanel.busAdmin.entity.SeatBooking;
 import com.goBhutan.adminPanel.busAdmin.service.BusBookingService;
+import com.goBhutan.adminPanel.busAdmin.service.BusRouteServiceNew;
+import com.goBhutan.adminPanel.busAdmin.service.BusScheduleService;
 import com.goBhutan.adminPanel.busAdmin.service.TicketService;
 import com.goBhutan.adminPanel.common.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/bookings")
 @RequiredArgsConstructor
-public class BusBookingController {
+@CrossOrigin(origins = "*", maxAge = 3600)
+@RequestMapping("/api/bus-app")
+public class BusAppController {
 
+    private final BusRouteServiceNew busRouteService;
+    private final BusScheduleService scheduleService;
     private final BusBookingService bookingService;
     private final TicketService ticketService;
 
-    @PostMapping("/lock")
-    public ResponseEntity<?> lock(@RequestBody LockSeatRequest req) {
+    @GetMapping("/routes/search")
+    public ResponseEntity<ApiResponse<List<BusRouteResponse>>> searchActiveRoutes(
+            @RequestParam String source,
+            @RequestParam String destination,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        try {
+            List<BusRouteResponse> routes = busRouteService
+                    .getBookableSchedulesBySourceDestinationAndDate(source, destination, date);
+            return ResponseEntity.ok(ApiResponse.success(routes));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @GetMapping("/routes/{routeId}/schedules")
+    public ResponseEntity<ApiResponse<List<AppScheduleResponse>>> getAvailableSchedules(
+            @PathVariable Long routeId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return ResponseEntity.ok(ApiResponse.success(
+                scheduleService.getAvailableSchedulesForApp(routeId, date)));
+    }
+
+    @GetMapping("/schedules/{scheduleId}/seats")
+    public ResponseEntity<?> getSeatStatus(@PathVariable Long scheduleId) {
+        return ResponseEntity.ok(bookingService.getSeatStatus(scheduleId));
+    }
+
+    @PostMapping("/bookings/lock")
+    public ResponseEntity<?> lockSeats(@RequestBody LockSeatRequest req) {
         String userId = currentUserId();
 
         List<SeatBooking> bookings = bookingService.lockSeats(
@@ -48,8 +91,8 @@ public class BusBookingController {
                 "seats", bookings));
     }
 
-    @PostMapping("/confirm")
-    public ResponseEntity<?> confirm(@RequestBody ConfirmBookingRequest req) {
+    @PostMapping("/bookings/confirm")
+    public ResponseEntity<?> confirmBooking(@RequestBody ConfirmBookingRequest req) {
         String userId = currentUserId();
 
         List<SeatBooking> bookings = bookingService.confirmBooking(req.getBookingRef(), userId);
@@ -66,8 +109,8 @@ public class BusBookingController {
                         "status", b.getStatus())).toList()));
     }
 
-    @PostMapping("/cancel/{bookingId}")
-    public ResponseEntity<?> cancel(@PathVariable Long bookingId) {
+    @PostMapping("/bookings/{bookingId}/cancel")
+    public ResponseEntity<?> cancelBooking(@PathVariable Long bookingId) {
         String userId = currentUserId();
 
         SeatBooking booking = bookingService.cancel(bookingId, userId);
@@ -77,23 +120,9 @@ public class BusBookingController {
                 "status", "CANCELLED"));
     }
 
-    @GetMapping("/schedule/{scheduleId}/seats")
-    public ResponseEntity<?> getSeatStatus(@PathVariable Long scheduleId) {
-        return ResponseEntity.ok(bookingService.getSeatStatus(scheduleId));
-    }
-
-    @GetMapping("/ticket/{bookingId}")
+    @GetMapping("/bookings/{bookingId}/ticket")
     public ResponseEntity<ApiResponse<BusTicketResponse>> getTicket(@PathVariable Long bookingId) {
         return ResponseEntity.ok(ApiResponse.success(ticketService.getTicketDetails(bookingId, currentUserId())));
-    }
-
-    @GetMapping("/admin/schedule/{id}/manifest")
-    public ResponseEntity<?> getManifest(@PathVariable Long id) {
-
-        Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        String adminUserId = jwt.getSubject();
-
-        return ResponseEntity.ok(bookingService.getManifestForSchedule(id, adminUserId));
     }
 
     private String currentUserId() {

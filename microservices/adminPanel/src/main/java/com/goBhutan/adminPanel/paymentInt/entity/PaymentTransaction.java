@@ -109,6 +109,8 @@ public class PaymentTransaction {
     @Column(nullable = false)
     private Integer statusCheckCount = 0;
 
+    private LocalDateTime lastStatusCheckedAt;
+
     @Lob
     private String rawArRequest;
 

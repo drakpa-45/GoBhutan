@@ -2,6 +2,7 @@ package com.goBhutan.adminPanel.busAdmin.repository;
 
 import com.goBhutan.adminPanel.busAdmin.entity.Schedule;
 import com.goBhutan.adminPanel.busAdmin.entity.SeatBooking;
+import com.goBhutan.adminPanel.busAdmin.enums.BookingStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -46,6 +47,8 @@ public interface SeatBookingRepository extends JpaRepository<SeatBooking, Long> 
 
     List<SeatBooking> findByScheduleId(Long scheduleId);
     Optional<SeatBooking> findByScheduleIdAndSeatNumber(Long scheduleId, Integer seatNumber);
+    boolean existsByScheduleIdAndStatus(Long scheduleId, BookingStatus status);
+    long countByScheduleIdAndStatus(Long scheduleId, BookingStatus status);
     List<SeatBooking> findByBookingRef(String bookingRef);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

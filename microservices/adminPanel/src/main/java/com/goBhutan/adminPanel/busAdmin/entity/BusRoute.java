@@ -3,6 +3,7 @@ package com.goBhutan.adminPanel.busAdmin.entity;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -45,12 +46,13 @@ public class BusRoute {
     private BigDecimal distance;
 
     @NotNull(message = "Base fare is required")
+    @DecimalMin(value = "0.01", message = "Base fare must be greater than 0")
     @Column(name = "base_fare", nullable = false, precision = 10, scale = 2)
     private BigDecimal baseFare;
 
-    // Duration in minutes
-    @Column(name = "estimated_duration")
-    private Integer estimatedDuration;
+    // Duration in minutes.
+    @Column(name = "estimated_duration_minutes")
+    private Integer estimatedDurationMinutes;
 
     // ---------------- DEPARTURE & FARE ----------------
     @NotNull(message = "Departure time is required")
@@ -58,9 +60,14 @@ public class BusRoute {
     @JsonFormat(pattern = "HH:mm")
     private LocalTime departureTime;
 
-    // Custom fare overrides base fare
-    @Column(name = "custom_fare", precision = 10, scale = 2)
-    private BigDecimal customFare;
+    @Column(name = "check_in_time")
+    @JsonFormat(pattern = "HH:mm")
+    private LocalTime checkInTime;
+
+    // Additional app charge added on top of base fare.
+    @DecimalMin(value = "0.0", message = "App charges must be zero or greater")
+    @Column(name = "app_charges", precision = 10, scale = 2)
+    private BigDecimal appCharges;
 
     // ---------------- STATUS ----------------
     @Column(nullable = false)
@@ -77,6 +84,13 @@ public class BusRoute {
 
     // Utility getter
     public BigDecimal getFinalFare() {
-        return customFare != null ? customFare : baseFare;
+        if (baseFare == null) {
+            return null;
+        }
+        return baseFare.add(getAppCharges() != null ? getAppCharges() : BigDecimal.ZERO);
+    }
+
+    public BigDecimal getAppCharges() {
+        return appCharges != null ? appCharges : BigDecimal.ZERO;
     }
 }

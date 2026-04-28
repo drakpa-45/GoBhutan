@@ -3,15 +3,17 @@ package com.goBhutan.adminPanel.busAdmin.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.util.Set;
 
 @Data
-public class GenerateScheduleRequest {
-    @NotNull(message = "Bus ID is required")
-    private Long busId;
+public class GenerateRouteScheduleRequest {
+    @NotEmpty(message = "Route IDs are required")
+    private Set<@NotNull(message = "Route ID cannot be null") Long> routeIds;
 
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate startDate;

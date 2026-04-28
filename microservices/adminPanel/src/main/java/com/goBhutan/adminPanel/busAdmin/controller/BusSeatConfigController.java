@@ -11,7 +11,6 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/buses/{busId}/seat-configs")
@@ -19,38 +18,50 @@ public class BusSeatConfigController {
     @Autowired
     private  BusSeatConfigService seatConfigService;
 
-//    @GetMapping
-//    public ResponseEntity<ApiResponse<List<BusSeatConfig>>> getConfigs(@PathVariable Long busId) {
-//        List<BusSeatConfig> seats = seatConfigService.getConfigsByBus(busId);
-//        return ResponseEntity.ok(ApiResponse.success(seats));
-//        //return ResponseEntity.ok(seatConfigService.getConfigsByBus(busId));
-//    }
-
     @GetMapping
     public ResponseEntity<ApiResponse<List<SeatDetailsDTO>>> getConfigs(@PathVariable Long busId) {
+        try {
+            String adminUserId = currentUserId();
+            List<SeatDetailsDTO> seats = seatConfigService.getConfigsByBus(busId, adminUserId)
+                    .stream()
+                    .map(this::toSeatDetails)
+                    .toList();
 
-        List<SeatDetailsDTO> seats = seatConfigService.getConfigsByBus(busId)
-                .stream()
-                .map(s -> new SeatDetailsDTO(s.getStartNo(),
-                        s.getSeatLabel(),
-                        s.getSeatType(),
-                        null ))
-                .toList();
-
-        return ResponseEntity.ok(ApiResponse.success(seats));
+            return ResponseEntity.ok(ApiResponse.success(seats));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
 
     @PostMapping("/generate-seats")
-    public ResponseEntity<?> generateLayout(@PathVariable Long busId,@RequestParam(defaultValue = "false") boolean forceRegenerate) {
+    public ResponseEntity<ApiResponse<List<SeatDetailsDTO>>> generateLayout(
+            @PathVariable Long busId,
+            @RequestParam(defaultValue = "false") boolean forceRegenerate) {
         try {
-            Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            String adminUserId = principal.getSubject();
+            String adminUserId = currentUserId();
 
             List<BusSeatConfig> seats = seatConfigService.generateSeatLayout(busId, forceRegenerate, adminUserId);
-            return ResponseEntity.ok(seats);
+            List<SeatDetailsDTO> response = seats.stream()
+                    .map(this::toSeatDetails)
+                    .toList();
+            return ResponseEntity.ok(ApiResponse.success("Seat layout generated successfully", response));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
+    }
+
+    private String currentUserId() {
+        Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return principal.getSubject();
+    }
+
+    private SeatDetailsDTO toSeatDetails(BusSeatConfig seat) {
+        return new SeatDetailsDTO(
+                seat.getStartNo(),
+                seat.getSeatLabel(),
+                seat.getSeatType(),
+                null
+        );
     }
 
 }

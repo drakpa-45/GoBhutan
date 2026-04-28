@@ -2,17 +2,20 @@ package com.goBhutan.adminPanel.busAdmin.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.ArrayList;
 
 @Entity
 @Data
-@Table(name = "tbl_bs_schedules")
+@Table(
+        name = "tbl_bs_schedules",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_bs_schedule_bus_route_departure",
+                columnNames = {"bus_id", "route_id", "departure_time"}
+        )
+)
 public class Schedule {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,13 +29,17 @@ public class Schedule {
     @Column(name = "arrival_time", nullable = false)
     private LocalDateTime arrivalTime;
 
-    @NotNull(message = "Price is required")
-    @DecimalMin(value = "0.01", message = "Price must be greater than 0")
-    @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal price;
-
     @Column(name = "available_seats")
     private Integer availableSeats;
+
+    @Column(name = "base_fare", precision = 10, scale = 2)
+    private BigDecimal baseFare;
+
+    @Column(name = "app_charges", precision = 10, scale = 2)
+    private BigDecimal appCharges;
+
+    @Column(name = "final_fare", precision = 10, scale = 2)
+    private BigDecimal finalFare;
 
     @Column(name = "is_active", nullable = false)
     private Boolean active = true;
@@ -46,6 +53,26 @@ public class Schedule {
     @JoinColumn(name = "route_id", nullable = false)
     @JsonIgnore
     private BusRoute route;
+
+    @Transient
+    public BigDecimal getBaseFare() {
+        return baseFare != null ? baseFare : route != null ? route.getBaseFare() : null;
+    }
+
+    @Transient
+    public BigDecimal getAppCharges() {
+        return appCharges != null ? appCharges : route != null ? route.getAppCharges() : BigDecimal.ZERO;
+    }
+
+    @Transient
+    public BigDecimal getFinalFare() {
+        return finalFare != null ? finalFare : route != null ? route.getFinalFare() : null;
+    }
+
+    @Transient
+    public boolean hasFareSnapshot() {
+        return baseFare != null && appCharges != null && finalFare != null;
+    }
 
 //    @OneToMany(mappedBy = "schedule", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
 //    @JsonIgnore
