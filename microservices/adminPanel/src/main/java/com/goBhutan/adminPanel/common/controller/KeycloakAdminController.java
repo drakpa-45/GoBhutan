@@ -15,10 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @RestController
 @CrossOrigin(origins = "*", maxAge = 3600)
@@ -204,7 +201,9 @@ public class KeycloakAdminController {
                 data.put("username", dbUser.getUsername());
                 data.put("accessToken", tokenResponse.get("access_token"));
                 data.put("refreshToken", tokenResponse.get("refresh_token"));
-                data.put("clients", userClients);                // ✅ dynamic menu
+                data.put("clients", userClients);
+                data.put("firstName", dbUser.getFirstName());
+                data.put("lastName", dbUser.getLastName());
 
                 return ResponseEntity.ok(ApiResponse.success("Sign in successful", data));
             }
@@ -265,33 +264,55 @@ public class KeycloakAdminController {
         }
     }
 
+//    @PostMapping("/update-clients")
+//    public ResponseEntity<ApiResponse<List<String>>> updateClients(@RequestBody SignupRequestDTO req) {
+//        try {
+//            // Fetch user from DB
+//            AppUser user = appUserService.findByUsername(req.getUsername())
+//                    .orElseThrow(() -> new RuntimeException("User not found"));
+//
+//            // Assign new clients
+//            for (String client : req.getClients()) {
+//                if (!user.getClients().contains(client)) {
+//                    appUserService.assignClient(req.getUsername(), client);
+//                }
+//            }
+//
+//            // Fetch updated user
+//            AppUser updatedUser = appUserService.findByUsername(req.getUsername())
+//                    .orElseThrow(() -> new RuntimeException("User not found after update"));
+//
+//            return ResponseEntity.ok(ApiResponse.success("Clients updated successfully",
+//                    List.copyOf(updatedUser.getClients())));
+//
+//        } catch (Exception e) {
+//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+//                    .body(ApiResponse.error("Failed to update clients: " + e.getMessage()));
+//        }
+//    }
+
     @PostMapping("/update-clients")
-    public ResponseEntity<ApiResponse<List<String>>> updateClients(@RequestBody SignupRequestDTO req) {
+    public ResponseEntity<ApiResponse<List<String>>> updateClients(
+            @RequestBody SignupRequestDTO req) {
+
         try {
-            // Fetch user from DB
-            AppUser user = appUserService.findByUsername(req.getUsername())
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+            AppUser updatedUser = appUserService.updateClients(
+                    req.getUsername(),
+                    new HashSet<>(req.getClients())
+            );
 
-            // Assign new clients
-            for (String client : req.getClients()) {
-                if (!user.getClients().contains(client)) {
-                    appUserService.assignClient(req.getUsername(), client);
-                }
-            }
-
-            // Fetch updated user
-            AppUser updatedUser = appUserService.findByUsername(req.getUsername())
-                    .orElseThrow(() -> new RuntimeException("User not found after update"));
-
-            return ResponseEntity.ok(ApiResponse.success("Clients updated successfully",
-                    List.copyOf(updatedUser.getClients())));
+            return ResponseEntity.ok(
+                    ApiResponse.success(
+                            "Clients updated successfully",
+                            List.copyOf(updatedUser.getClients())
+                    )
+            );
 
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.error("Failed to update clients: " + e.getMessage()));
         }
     }
-
     // 🔹 Helper method to fetch Keycloak config
     private KeycloakConfig getKeycloakConfig(String clientKey) {
         var clientConfig = clientProperties.getClient(clientKey);

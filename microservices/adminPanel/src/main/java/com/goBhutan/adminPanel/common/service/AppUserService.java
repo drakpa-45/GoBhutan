@@ -76,6 +76,18 @@ public class AppUserService {
         repo.save(user); // persists the change
     }
 
+    @Transactional
+    public AppUser updateClients(String username, Set<String> newClients) {
+
+        AppUser user = repo.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+
+        // Replace existing clients with selected ones
+        user.setClients(new HashSet<>(newClients));
+
+        return repo.save(user);
+    }
+
     /**
      * Find AppUser by username.
      */
