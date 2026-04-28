@@ -39,6 +39,9 @@ public class Booking {
     
     @Enumerated(EnumType.STRING)
     private BookingStatus status;
+
+    @Column(name = "wallet_payment_ref", length = 120)
+    private String walletPaymentRef;
     
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -80,7 +83,15 @@ public class Booking {
     
     public BookingStatus getStatus() { return status; }
     public void setStatus(BookingStatus status) { this.status = status; }
-    
+
+    public String getWalletPaymentRef() {
+        return walletPaymentRef;
+    }
+
+    public void setWalletPaymentRef(String walletPaymentRef) {
+        this.walletPaymentRef = walletPaymentRef;
+    }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 

@@ -49,10 +49,10 @@ public class BookingController {
         return new ApiResponse<>(true, "Booking created successfully", created);
     }
 
-    @PutMapping("/{id}/confirm")
+    @PutMapping("/{id}/confirm/{bookingReference}")
 // @PreAuthorize("hasRole('client_admin')")
-    public ApiResponse<Void> confirmBooking(@PathVariable Long id) {
-        bookingService.confirmBooking(id);
+    public ApiResponse<Void> confirmBooking(@PathVariable Long id, @PathVariable String bookingReference) {
+        bookingService.confirmBooking(id,bookingReference);
         return new ApiResponse<>(true, "Booking confirmed successfully", null);
     }
 
