@@ -7,8 +7,7 @@ public class BookingSummaryDTO {
     private String status;
     private String bookingReference;
 
-    public BookingSummaryDTO(Long bookingId, String guestName, String roomNumber,
-                             String status, String bookingReference) {
+    public BookingSummaryDTO() {
         this.bookingId = bookingId;
         this.guestName = guestName;
         this.roomNumber = roomNumber;

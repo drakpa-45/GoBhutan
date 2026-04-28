@@ -44,8 +44,8 @@ public class BookingController {
 
     @PostMapping
    // @PreAuthorize("hasRole('client_admin')")
-    public ApiResponse<Booking> createBooking(@RequestBody @Valid BookingRequestDTO bookingRequest) {
-        Booking created = bookingService.createBooking(bookingRequest);
+    public ApiResponse<BookingSummaryDTO> createBooking(@RequestBody @Valid BookingRequestDTO bookingRequest) {
+        BookingSummaryDTO created = bookingService.createBooking(bookingRequest);
         return new ApiResponse<>(true, "Booking created successfully", created);
     }
 

@@ -1,53 +1,43 @@
 package com.goBhutan.adminPanel.hotel.dto;
 
+import com.goBhutan.adminPanel.hotel.entity.Amenity;
 import lombok.Data;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 @Data
 public class HotelSearchRequestDTO {
 
-    // Full-text search on hotel name
     private String keyword;
 
-    // Location filters
     private String city;
-    private String district;     // Bhutan-specific (e.g., Paro, Thimphu)
-    private Double latitude;
-    private Double longitude;
-    private Double radiusKm;     // Used with lat/lng for proximity search
+    private String state;
+    private String country;
 
-    // Rating filter (e.g., minRating = 3.5 → returns 3.5+)
-    private Double minRating;
-    private Integer minStars;    // 1–5 star classification
+    private Integer minStars;
     private Integer maxStars;
 
-    // Price range
     private BigDecimal minPrice;
     private BigDecimal maxPrice;
 
-    // Amenities (e.g., ["WIFI", "POOL", "SPA"])
-    private List<String> amenities;
+    private List<String> amenityNames;
+    private List<Amenity.AmenityCategory> amenityCategories;
 
-    // Availability (optional — for room-aware search)
-    private java.time.LocalDate checkIn;
-    private java.time.LocalDate checkOut;
+    private LocalDate checkIn;
+    private LocalDate checkOut;
     private Integer guests;
 
-    // Sorting
-    private SortOption sortBy = SortOption.POPULARITY;
-    private String sortDirection = "DESC"; // ASC | DESC
+    private SortOption sortBy = SortOption.NEWEST;
+    private String sortDirection = "DESC";
 
-    // Pagination
     private int page = 0;
     private int size = 20;
 
     public enum SortOption {
-        POPULARITY,       // by total booking count
-        RATING,           // by average review rating
+        STAR_RATING,
         PRICE_LOW_HIGH,
         PRICE_HIGH_LOW,
-        DISTANCE,         // requires lat/lng
         NEWEST
     }
 }

@@ -16,7 +16,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/search")
+@RequestMapping("/api/search/theater")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Public Search", description = "Public search APIs for mobile app — no auth required")
