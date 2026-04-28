@@ -1,29 +1,30 @@
 package com.goBhutan.adminPanel.hotel.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.goBhutan.adminPanel.hotel.dto.BookingRequestDTO;
-import com.goBhutan.adminPanel.hotel.dto.BookingSummaryDTO;
 import com.goBhutan.adminPanel.hotel.entity.Guest;
 import com.goBhutan.adminPanel.hotel.entity.Hotel;
 import com.goBhutan.adminPanel.hotel.entity.Room;
 import com.goBhutan.adminPanel.hotel.repository.BookingSummary;
 import com.goBhutan.adminPanel.hotel.repository.HotelRepository;
 import com.goBhutan.adminPanel.hotel.repository.RoomRepository;
+import com.goBhutan.adminPanel.paymentInt.dto.WalletPaymentRequest;
+import com.goBhutan.adminPanel.paymentInt.dto.WalletPaymentResult;
+import com.goBhutan.adminPanel.paymentInt.service.PaymentIntegrationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
 import com.goBhutan.adminPanel.hotel.entity.Booking;
-import com.goBhutan.adminPanel.hotel.entity.Booking.BookingStatus;
 import com.goBhutan.adminPanel.hotel.repository.BookingRepository;
 
 import jakarta.transaction.Transactional;
@@ -38,6 +39,8 @@ public class BookingService {
     private HotelRepository hotelRepo;
     @Autowired
     private RoomRepository roomRepo;
+
+    private PaymentIntegrationService paymentService;
 
     public List<BookingSummary> getBookingSummariesByHotel(Long hotelId) {
         return bookingRepo.findBookingSummariesByHotelId(hotelId);
@@ -118,8 +121,47 @@ public class BookingService {
         return bookingRepo.save(booking);
     }
 
-    public void confirmBooking(Long id) {
-        Booking booking = getBooking(id);
+    @Transactional
+    public void confirmBooking(Long id, String bookingReference) {
+        Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String userId = jwt.getSubject();
+
+        Booking booking = bookingRepo.getBookingStatus(id, bookingReference);
+
+        if (!"PENDING".equalsIgnoreCase(String.valueOf(booking.getStatus()))) {
+            throw new RuntimeException("Cannot confirm booking " + bookingReference
+                    + " with status: " + booking.getStatus());
+        }
+
+        //booking is a single object
+        if (booking.getWalletPaymentRef() != null && !booking.getWalletPaymentRef().isBlank()) {
+            throw new RuntimeException("Wallet payment already processed for this booking");
+        }
+
+        BigDecimal totalAmount = booking.getTotalAmount();
+
+        WalletPaymentRequest paymentRequest = new WalletPaymentRequest();
+        paymentRequest.setAmount(totalAmount);
+        paymentRequest.setCurrency("BTN");
+        paymentRequest.setServiceName("HOTEL");
+        paymentRequest.setReferenceType("HOTEL_ROOM_BOOKING");
+        paymentRequest.setReferenceId(bookingReference);
+        paymentRequest.setDescription("Hotel room booking payment");
+
+        WalletPaymentResult walletPayment = paymentService.payWithWallet(paymentRequest, userId);
+
+        paymentService.creditServiceSettlement(
+                walletPayment.getPaymentRef(),
+                totalAmount,
+                "HOTEL",
+                "HOTEL_ROOM_BOOKING",
+                bookingReference,
+                "Hotel room booking settlement",
+                booking.getHotel().getAdminUserId()
+        );
+
+        // persist the payment reference
+        booking.setWalletPaymentRef(walletPayment.getPaymentRef());
         booking.setStatus(Booking.BookingStatus.CONFIRMED);
         bookingRepo.save(booking);
     }
