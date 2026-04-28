@@ -1,5 +1,6 @@
 package com.goBhutan.adminPanel.hotel.dto;
 
+import com.goBhutan.adminPanel.hotel.entity.Amenity;
 import lombok.Builder;
 import lombok.Data;
 import java.math.BigDecimal;
@@ -11,21 +12,31 @@ public class HotelSearchResultDTO {
 
     private Long hotelId;
     private String name;
+    private String description;
+
+    private String address;
     private String city;
-    private String district;
-    private String thumbnailUrl;
-    private List<String> imageUrls;
+    private String state;
+    private String country;
+    private String postalCode;
+
+    private String phoneNumber;
+    private String email;
+    private String website;
 
     private Integer starRating;
-    private Double averageRating;      // e.g., 4.3
-    private Integer reviewCount;
+    private BigDecimal startingFromPrice;
 
-    private BigDecimal pricePerNight;  // lowest available room price
-    private String currency;           // "BTN" / "USD"
+    private String primaryImageUrl;
 
-    private Long totalBookings;        // popularity signal
-    private Double distanceKm;         // null if no lat/lng provided
+    private List<AmenityDTO> amenities;
 
-    private List<String> amenities;
-    private Boolean isAvailable;       // null if no dates given
+    @Data
+    @Builder
+    public static class AmenityDTO {
+        private Long id;
+        private String name;
+        private String iconClass;
+        private Amenity.AmenityCategory category;
+    }
 }

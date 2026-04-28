@@ -10,6 +10,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.goBhutan.adminPanel.hotel.dto.BookingRequestDTO;
+import com.goBhutan.adminPanel.hotel.dto.BookingSummaryDTO;
 import com.goBhutan.adminPanel.hotel.entity.Guest;
 import com.goBhutan.adminPanel.hotel.entity.Hotel;
 import com.goBhutan.adminPanel.hotel.entity.Room;
@@ -40,6 +41,7 @@ public class BookingService {
     @Autowired
     private RoomRepository roomRepo;
 
+    @Autowired
     private PaymentIntegrationService paymentService;
 
     public List<BookingSummary> getBookingSummariesByHotel(Long hotelId) {
@@ -51,7 +53,8 @@ public class BookingService {
         return bookingRepo.findById(id).orElseThrow(() -> new RuntimeException("Booking not found"));
     }
 
-    public Booking createBooking(BookingRequestDTO dto) {
+    public BookingSummaryDTO createBooking(BookingRequestDTO dto) {
+        BookingSummaryDTO summaryDTO =  new BookingSummaryDTO();
         // 1. Fetch hotel
         Hotel hotel = hotelRepo.findById(dto.getHotelId())
                 .orElseThrow(() -> new RuntimeException("Hotel not found"));
@@ -118,7 +121,12 @@ public class BookingService {
         }
 
         // 7. Save booking (cascade saves guests)
-        return bookingRepo.save(booking);
+         bookingRepo.save(booking);
+        summaryDTO.setBookingReference(reference);
+        summaryDTO.setStatus(String.valueOf(Booking.BookingStatus.PENDING));
+        summaryDTO.setBookingId(room.getId());
+
+        return summaryDTO;
     }
 
     @Transactional
@@ -163,6 +171,16 @@ public class BookingService {
         // persist the payment reference
         booking.setWalletPaymentRef(walletPayment.getPaymentRef());
         booking.setStatus(Booking.BookingStatus.CONFIRMED);
+
+        // Ensure room exists
+        Room room = booking.getRoom();
+        if (room == null) {
+            throw new RuntimeException("Booking has no associated room");
+        }
+
+        room.setStatus(Room.RoomStatus.OCCUPIED);
+        roomRepo.save(room);
+
         bookingRepo.save(booking);
     }
 
@@ -192,7 +210,7 @@ public class BookingService {
         booking.setCreatedAt(LocalDateTime.now());
 
         // 5️⃣ Update room status
-        room.setStatus(Room.RoomStatus.OCCUPIED);
+     //   room.setStatus(Room.RoomStatus.OCCUPIED);
 
         // 6️⃣ Validate guests (optional, if any rules exist)
         if (booking.getGuests() != null) {
@@ -204,7 +222,7 @@ public class BookingService {
         }
 
         // 7️⃣ Save room and booking in the same transaction
-        roomRepo.save(room);
+       // roomRepo.save(room);
         bookingRepo.save(booking);
     }
 
