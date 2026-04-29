@@ -66,6 +66,48 @@ public class BusBookingController {
                         "status", b.getStatus())).toList()));
     }
 
+    @PostMapping("/admin/cash/lock")
+    public ResponseEntity<?> lockCashBooking(@RequestBody LockSeatRequest req) {
+        String adminUserId = currentUserId();
+
+        List<SeatBooking> bookings = bookingService.lockCashSeats(
+                req.getScheduleId(),
+                req.getSeatNumbers(),
+                req.getSeatLabels(),
+                adminUserId,
+                req.getApplicantCid(),
+                req.getApplicantMobile(),
+                req.getApplicantEmail());
+
+        return ResponseEntity.ok(Map.of(
+                "bookingRef", bookings.get(0).getBookingRef(),
+                "seatLabel", bookings.get(0).getSeatLabel(),
+                "expiresAt", bookings.get(0).getLockExpiry(),
+                "paymentMode", "CASH",
+                "seats", bookings));
+    }
+
+
+
+    @PostMapping("/admin/cash/confirm")
+    public ResponseEntity<?> confirmCashBooking(@RequestBody ConfirmBookingRequest req) {
+        String adminUserId = currentUserId();
+
+        List<SeatBooking> bookings = bookingService.confirmCashBooking(req.getBookingRef(), adminUserId);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Booking confirmed",
+                "bookingRef", req.getBookingRef(),
+                "paymentMode", "CASH",
+                "scheduleId", bookings.get(0).getSchedule().getId(),
+                "totalSeats", bookings.size(),
+                "seats", bookings.stream().map(b -> Map.of(
+                        "bookingId", b.getId(),
+                        "seatNumber", b.getSeatNumber(),
+                        "seatLabel", b.getSeatLabel(),
+                        "status", b.getStatus())).toList()));
+    }
+
     @PostMapping("/cancel/{bookingId}")
     public ResponseEntity<?> cancel(@PathVariable Long bookingId) {
         String userId = currentUserId();
@@ -77,6 +119,18 @@ public class BusBookingController {
                 "status", "CANCELLED"));
     }
 
+    @PostMapping("/admin/cash/cancel/{bookingId}")
+    public ResponseEntity<?> cancelCashBooking(@PathVariable Long bookingId) {
+        String adminUserId = currentUserId();
+
+        SeatBooking booking = bookingService.cancelCashByAdmin(bookingId, adminUserId);
+
+        return ResponseEntity.ok(Map.of(
+                "bookingId", booking.getId(),
+                "paymentMode", "CASH",
+                "status", "CANCELLED"));
+    }
+
     @GetMapping("/schedule/{scheduleId}/seats")
     public ResponseEntity<?> getSeatStatus(@PathVariable Long scheduleId) {
         return ResponseEntity.ok(bookingService.getSeatStatus(scheduleId));
@@ -85,6 +139,12 @@ public class BusBookingController {
     @GetMapping("/ticket/{bookingId}")
     public ResponseEntity<ApiResponse<BusTicketResponse>> getTicket(@PathVariable Long bookingId) {
         return ResponseEntity.ok(ApiResponse.success(ticketService.getTicketDetails(bookingId, currentUserId())));
+    }
+
+    @GetMapping("/admin/cash/ticket/{bookingId}")
+    public ResponseEntity<ApiResponse<BusTicketResponse>> getCashTicket(@PathVariable Long bookingId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                ticketService.getCashTicketDetailsForAdmin(bookingId, currentUserId())));
     }
 
     @GetMapping("/admin/schedule/{id}/manifest")

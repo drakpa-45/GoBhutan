@@ -56,7 +56,7 @@ public class PaymentTransaction {
     @Column(length = 120)
     private String remitterEmail;
 
-    @Column(length = 200)
+    @Column(length = 500)
     private String description;
 
     @Column(length = 40)

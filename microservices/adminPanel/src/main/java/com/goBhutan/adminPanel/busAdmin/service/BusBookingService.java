@@ -16,6 +16,7 @@ import com.goBhutan.adminPanel.paymentInt.dto.WalletPaymentResult;
 import com.goBhutan.adminPanel.paymentInt.service.PaymentIntegrationService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -34,6 +35,8 @@ import java.util.stream.Collectors;
 public class BusBookingService {
 
     private static final String APP_OWNER_USERNAME = "YAYAOWNER";
+    private static final String PAYMENT_METHOD_WALLET = "WALLET";
+    private static final String PAYMENT_METHOD_CASH = "CASH";
     private static final String BUS_BOOKING_REFERENCE_TYPE = "BUS_BOOKING";
     private static final String BUS_APP_CHARGE_REFERENCE_TYPE = "BUS_APP_CHARGE";
 
@@ -42,6 +45,9 @@ public class BusBookingService {
     private final SeatBroadcastService broadcastService;
     private final PaymentIntegrationService paymentService;
     private final AppUserService appUserService;
+
+    @Value("${app.clients.bus.seat-lock-minutes:5}")
+    private long seatLockMinutes;
 
 
     /**
@@ -84,7 +90,7 @@ public class BusBookingService {
         BigDecimal finalFare = getScheduleFare(schedule);
 
         String bookingRef = UUID.randomUUID().toString();
-        LocalDateTime lockExpiry = now.plusMinutes(5);
+        LocalDateTime lockExpiry = getLockExpiry(now);
 
         List<SeatBooking> bookingList = new ArrayList<>();
 
@@ -122,6 +128,7 @@ public class BusBookingService {
             booking.setUserId(userId);
             booking.setBookingRef(bookingRef);
             booking.setWalletPaymentRef(null);
+            booking.setPaymentMethod(null);
             booking.setStatus(BookingStatus.LOCKED);
             booking.setLockExpiry(lockExpiry);
             applyFareSnapshot(booking, baseFare, appCharges, finalFare);
@@ -132,6 +139,87 @@ public class BusBookingService {
         List<SeatBooking> saved = bookingRepo.saveAll(bookingList);
 
         // Step 5 — WebSocket update
+        broadcastService.broadcastSeatUpdate(scheduleId);
+
+        return saved;
+    }
+
+    @Transactional
+    public List<SeatBooking> lockCashSeats(
+            Long scheduleId,
+            List<Integer> seatNumbers,
+            List<String> seatLabels,
+            String adminUserId,
+            String cid,
+            String mobile,
+            String email
+    ) {
+
+        if (seatNumbers == null || seatNumbers.isEmpty())
+            throw new RuntimeException("No seats selected");
+
+        if (new HashSet<>(seatNumbers).size() != seatNumbers.size())
+            throw new RuntimeException("Duplicate seat numbers selected");
+
+        LocalDateTime now = LocalDateTime.now();
+
+        bookingRepo.releaseExpiredLocks(now);
+
+        Schedule schedule = scheduleRepo.lockSchedule(scheduleId);
+        ensureScheduleBookable(schedule);
+        ensureScheduleOwnedByAdmin(schedule, adminUserId);
+        Bus bus = schedule.getBus();
+
+        if (schedule.getDepartureTime() != null && !schedule.getDepartureTime().isAfter(now)) {
+            throw new RuntimeException("Cannot book seats for a departed schedule");
+        }
+
+        String bookingRef = UUID.randomUUID().toString();
+        LocalDateTime lockExpiry = getLockExpiry(now);
+
+        List<SeatBooking> bookingList = new ArrayList<>();
+
+        for (Integer seatNumber : seatNumbers) {
+            validateSeatNumber(seatNumber, bus.getTotalSeats());
+            String seatLabel = getSeatLabel(bus, seatNumber);
+
+            SeatBooking booking = bookingRepo.findByScheduleIdAndSeatNumber(scheduleId, seatNumber)
+                    .orElseGet(() -> {
+                        SeatBooking freshBooking = new SeatBooking();
+                        freshBooking.setSchedule(schedule);
+                        freshBooking.setSeatNumber(seatNumber);
+                        return freshBooking;
+                    });
+
+            if (booking.getId() != null) {
+                if (booking.getStatus() == BookingStatus.BOOKED) {
+                    throw new RuntimeException("Seat " + seatNumber + " is already booked");
+                }
+
+                if (booking.getStatus() == BookingStatus.LOCKED
+                        && booking.getLockExpiry() != null
+                        && booking.getLockExpiry().isAfter(now)) {
+                    throw new RuntimeException("Seat " + seatNumber + " is already locked");
+                }
+            }
+
+            booking.setSeatLabel(seatLabel);
+            booking.setApplicantCid(cid);
+            booking.setApplicantMobile(mobile);
+            booking.setApplicantEmail(email);
+            booking.setUserId(adminUserId);
+            booking.setBookingRef(bookingRef);
+            booking.setWalletPaymentRef(null);
+            booking.setPaymentMethod(PAYMENT_METHOD_CASH);
+            booking.setStatus(BookingStatus.LOCKED);
+            booking.setLockExpiry(lockExpiry);
+            clearFareSnapshot(booking);
+
+            bookingList.add(booking);
+        }
+
+        List<SeatBooking> saved = bookingRepo.saveAll(bookingList);
+
         broadcastService.broadcastSeatUpdate(scheduleId);
 
         return saved;
@@ -249,12 +337,60 @@ public class BusBookingService {
         // Confirm seats
         for (SeatBooking b : bookings) {
             b.setWalletPaymentRef(walletPayment.getPaymentRef());
+            b.setPaymentMethod(PAYMENT_METHOD_WALLET);
             b.setStatus(BookingStatus.BOOKED);
             b.setLockExpiry(null);
         }
 
         // Reduce seats count
         schedule.setAvailableSeats(schedule.getAvailableSeats() - bookings.size());
+
+        List<SeatBooking> saved = bookingRepo.saveAll(bookings);
+
+        broadcastService.broadcastSeatUpdate(schedule.getId());
+
+        return saved;
+    }
+
+    @Transactional
+    public List<SeatBooking> confirmCashBooking(String bookingRef, String adminUserId) {
+
+        List<SeatBooking> bookings = bookingRepo.findByBookingRefForUpdate(bookingRef);
+
+        if (bookings.isEmpty())
+            throw new RuntimeException("Invalid or expired booking reference");
+
+        if (bookings.stream().anyMatch(b -> !matchesCurrentAdmin(b.getUserId(), adminUserId)))
+            throw new RuntimeException("Unauthorized confirmation attempt");
+
+        LocalDateTime now = LocalDateTime.now();
+
+        if (bookings.stream().anyMatch(b -> b.getStatus() != BookingStatus.LOCKED))
+            throw new RuntimeException("Booking is no longer pending confirmation");
+
+        if (bookings.stream().anyMatch(b -> b.getLockExpiry() == null || b.getLockExpiry().isBefore(now)))
+            throw new RuntimeException("Seat lock expired");
+
+        if (bookings.stream().anyMatch(b -> !PAYMENT_METHOD_CASH.equalsIgnoreCase(b.getPaymentMethod())))
+            throw new RuntimeException("Cash confirmation is only allowed for cash-locked bookings");
+
+        Schedule schedule = scheduleRepo.lockSchedule(bookings.get(0).getSchedule().getId());
+        ensureScheduleBookable(schedule);
+        ensureScheduleOwnedByAdmin(schedule, adminUserId);
+
+        if (schedule.getDepartureTime() != null && !schedule.getDepartureTime().isAfter(now)) {
+            throw new RuntimeException("Cannot confirm seats for a departed schedule");
+        }
+
+        for (SeatBooking b : bookings) {
+            b.setWalletPaymentRef(null);
+            b.setPaymentMethod(PAYMENT_METHOD_CASH);
+            b.setStatus(BookingStatus.BOOKED);
+            b.setLockExpiry(null);
+            clearFareSnapshot(b);
+        }
+
+        decreaseAvailableSeats(schedule, bookings.size());
 
         List<SeatBooking> saved = bookingRepo.saveAll(bookings);
 
@@ -297,6 +433,17 @@ public class BusBookingService {
 
         if (targetBooking.getStatus() == BookingStatus.BOOKED) {
             String walletPaymentRef = targetBooking.getWalletPaymentRef();
+            if (PAYMENT_METHOD_CASH.equalsIgnoreCase(targetBooking.getPaymentMethod())) {
+                increaseAvailableSeats(schedule, 1);
+                targetBooking.setStatus(BookingStatus.CANCELLED);
+                targetBooking.setLockExpiry(null);
+
+                SeatBooking savedBooking = bookingRepo.save(targetBooking);
+                broadcastService.broadcastSeatUpdate(schedule.getId());
+
+                return savedBooking;
+            }
+
             if (walletPaymentRef == null || walletPaymentRef.isBlank()) {
                 throw new RuntimeException("Missing wallet payment reference for booked seat");
             }
@@ -366,12 +513,42 @@ public class BusBookingService {
         return savedBooking;
     }
 
+    public SeatBooking cancelCashByAdmin(Long bookingId, String adminUserId) {
+        SeatBooking booking = bookingRepo.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
+
+        if (!PAYMENT_METHOD_CASH.equalsIgnoreCase(booking.getPaymentMethod())) {
+            throw new RuntimeException("Booking is not a cash booking");
+        }
+
+        Schedule schedule = scheduleRepo.lockSchedule(booking.getSchedule().getId());
+        ensureScheduleOwnedByAdmin(schedule, adminUserId);
+
+        if (booking.getStatus() == BookingStatus.CANCELLED)
+            throw new RuntimeException("Booking already cancelled");
+
+        if (booking.getStatus() == BookingStatus.EXPIRED)
+            throw new RuntimeException("Booking already expired");
+
+        if (booking.getStatus() == BookingStatus.BOOKED) {
+            increaseAvailableSeats(schedule, 1);
+        }
+
+        booking.setStatus(BookingStatus.CANCELLED);
+        booking.setLockExpiry(null);
+
+        SeatBooking savedBooking = bookingRepo.save(booking);
+        broadcastService.broadcastSeatUpdate(schedule.getId());
+
+        return savedBooking;
+    }
+
     public List<ManifestItem> getManifestForSchedule(Long scheduleId, String adminUserId) {
 
         Schedule sched = scheduleRepo.findById(scheduleId)
                 .orElseThrow(() -> new RuntimeException("Schedule not found"));
 
-        if (!sched.getBus().getAdminUserId().equals(adminUserId))
+        if (!matchesCurrentAdmin(sched.getBus().getAdminUserId(), adminUserId))
             throw new RuntimeException("Unauthorized");
         Bus bus = sched.getBus();
         return bookingRepo.findByScheduleId(scheduleId).stream()
@@ -420,6 +597,69 @@ public class BusBookingService {
         }
     }
 
+    private void ensureScheduleOwnedByAdmin(Schedule schedule, String adminUserId) {
+        Bus bus = schedule.getBus();
+        if (bus == null || !matchesCurrentAdmin(bus.getAdminUserId(), adminUserId)) {
+            throw new RuntimeException("Unauthorized");
+        }
+    }
+
+    private LocalDateTime getLockExpiry(LocalDateTime now) {
+        if (seatLockMinutes <= 0) {
+            throw new RuntimeException("Seat lock duration must be greater than zero");
+        }
+        return now.plusMinutes(seatLockMinutes);
+    }
+
+    private boolean matchesCurrentAdmin(String storedUserId, String currentKeycloakId) {
+        if (isBlank(storedUserId) || isBlank(currentKeycloakId)) {
+            return false;
+        }
+        if (storedUserId.equals(currentKeycloakId)) {
+            return true;
+        }
+
+        boolean storedValueIsUsernameForCurrentUser = appUserService.findByUsername(storedUserId)
+                .map(AppUser::getKeycloakId)
+                .filter(currentKeycloakId::equals)
+                .isPresent();
+        if (storedValueIsUsernameForCurrentUser) {
+            return true;
+        }
+
+        return appUserService.findByKeycloakId(currentKeycloakId)
+                .map(AppUser::getUsername)
+                .filter(storedUserId::equals)
+                .isPresent();
+    }
+
+    private void decreaseAvailableSeats(Schedule schedule, int bookedSeatCount) {
+        int currentAvailableSeats = currentAvailableSeats(schedule);
+        if (currentAvailableSeats < bookedSeatCount) {
+            throw new RuntimeException("Not enough seats available");
+        }
+        schedule.setAvailableSeats(currentAvailableSeats - bookedSeatCount);
+    }
+
+    private void increaseAvailableSeats(Schedule schedule, int releasedSeatCount) {
+        int currentAvailableSeats = currentAvailableSeats(schedule);
+        int totalSeats = schedule.getBus() == null || schedule.getBus().getTotalSeats() == null
+                ? currentAvailableSeats + releasedSeatCount
+                : schedule.getBus().getTotalSeats();
+        schedule.setAvailableSeats(Math.min(totalSeats, currentAvailableSeats + releasedSeatCount));
+    }
+
+    private int currentAvailableSeats(Schedule schedule) {
+        if (schedule.getAvailableSeats() != null) {
+            return schedule.getAvailableSeats();
+        }
+        if (schedule.getBus() == null || schedule.getBus().getTotalSeats() == null) {
+            throw new RuntimeException("Schedule available seats is not configured");
+        }
+        long bookedSeats = bookingRepo.countByScheduleIdAndStatus(schedule.getId(), BookingStatus.BOOKED);
+        return schedule.getBus().getTotalSeats() - (int) bookedSeats;
+    }
+
     private BigDecimal getScheduleFare(Schedule schedule) {
         if (schedule == null || schedule.getFinalFare() == null) {
             throw new RuntimeException("Schedule fare is not configured");
@@ -461,6 +701,12 @@ public class BusBookingService {
         booking.setFinalFareAtBooking(money(finalFare));
     }
 
+    private void clearFareSnapshot(SeatBooking booking) {
+        booking.setBaseFareAtBooking(null);
+        booking.setAppChargesAtBooking(null);
+        booking.setFinalFareAtBooking(null);
+    }
+
     private BigDecimal sumFinalFare(List<SeatBooking> bookings) {
         return bookings.stream()
                 .map(SeatBooking::getFinalFareAtBooking)
@@ -488,6 +734,10 @@ public class BusBookingService {
 
     private BigDecimal money(BigDecimal value) {
         return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 
     private String getAppOwnerUserId() {
