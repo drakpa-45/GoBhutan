@@ -55,6 +55,9 @@ public class SeatBooking {
     @Column(name = "wallet_payment_ref", length = 120)
     private String walletPaymentRef;
 
+    @Column(name = "payment_method", length = 20)
+    private String paymentMethod;
+
     @Column(name = "base_fare_at_booking", precision = 10, scale = 2)
     private BigDecimal baseFareAtBooking;
 

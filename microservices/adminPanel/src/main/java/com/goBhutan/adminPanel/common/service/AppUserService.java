@@ -96,6 +96,11 @@ public class AppUserService {
         return repo.findByUsername(username);
     }
 
+    @Transactional
+    public Optional<AppUser> findByKeycloakId(String keycloakId) {
+        return repo.findByKeycloakId(keycloakId);
+    }
+
     /**
      * Get all clients assigned to a user.
      */
