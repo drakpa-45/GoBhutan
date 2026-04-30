@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.Optional;
 
 @Repository
@@ -20,6 +21,13 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
             String referenceId,
             PaymentTransactionType transactionType,
             PaymentStatus status
+    );
+    Optional<PaymentTransaction> findFirstByUserIdAndReferenceTypeAndReferenceIdAndTransactionTypeAndStatusInOrderByCreatedAtDesc(
+            String userId,
+            String referenceType,
+            String referenceId,
+            PaymentTransactionType transactionType,
+            Collection<PaymentStatus> statuses
     );
     Optional<PaymentTransaction> findFirstByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
             String userId,

@@ -2,6 +2,9 @@ package com.goBhutan.adminPanel.paymentInt.service;
 
 import com.goBhutan.adminPanel.paymentInt.config.BfsSecureProperties;
 import com.goBhutan.adminPanel.paymentInt.dto.BfsGatewayResponse;
+import com.goBhutan.adminPanel.paymentInt.dto.GatewayPaymentAccountInquiryResponse;
+import com.goBhutan.adminPanel.paymentInt.dto.GatewayPaymentDebitResponse;
+import com.goBhutan.adminPanel.paymentInt.dto.GatewayPaymentInitiateResponse;
 import com.goBhutan.adminPanel.paymentInt.dto.PaymentStatusResponse;
 import com.goBhutan.adminPanel.paymentInt.dto.TopupAccountInquiryRequest;
 import com.goBhutan.adminPanel.paymentInt.dto.TopupAccountInquiryResponse;
@@ -9,10 +12,10 @@ import com.goBhutan.adminPanel.paymentInt.dto.TopupDebitRequest;
 import com.goBhutan.adminPanel.paymentInt.dto.TopupDebitResponse;
 import com.goBhutan.adminPanel.paymentInt.dto.TopupInitiateRequest;
 import com.goBhutan.adminPanel.paymentInt.dto.TopupInitiateResponse;
+import com.goBhutan.adminPanel.paymentInt.dto.ServicePaymentRequest;
 import com.goBhutan.adminPanel.paymentInt.dto.WalletBalanceResponse;
 import com.goBhutan.adminPanel.paymentInt.dto.WalletConfigResponse;
 import com.goBhutan.adminPanel.paymentInt.dto.WalletLedgerItemResponse;
-import com.goBhutan.adminPanel.paymentInt.dto.WalletPaymentRequest;
 import com.goBhutan.adminPanel.paymentInt.dto.WalletPaymentResult;
 import com.goBhutan.adminPanel.paymentInt.entity.PaymentTransaction;
 import com.goBhutan.adminPanel.paymentInt.entity.PaymentWalletConfig;
@@ -40,6 +43,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 
 @Service
 @Transactional
@@ -49,6 +53,9 @@ public class PaymentIntegrationService {
     private static final int MAX_STATUS_CHECK_COUNT = 3;
     private static final long STATUS_POLL_DELAY_MINUTES = 6;
     private static final long STATUS_POLL_INTERVAL_SECONDS = 60;
+    private static final Pattern REMITTER_EMAIL_PATTERN = Pattern.compile(
+            "^[A-Z0-9._%+-]+@([A-Z0-9-]+\\.)+[A-Z]{2,}$",
+            Pattern.CASE_INSENSITIVE);
 
     private final PaymentTransactionRepository transactionRepository;
     private final WalletAccountRepository walletAccountRepository;
@@ -63,7 +70,97 @@ public class PaymentIntegrationService {
     }
 
     public TopupInitiateResponse initiateTopup(TopupInitiateRequest req, String userId) {
+        ServicePaymentRequest paymentRequest = new ServicePaymentRequest();
+        paymentRequest.setAmount(req.getAmount());
+        paymentRequest.setCurrency(req.getCurrency());
+        paymentRequest.setDescription(req.getDescription());
+
+        return toTopupInitiateResponse(initiateGatewayPayment(
+                paymentRequest,
+                userId,
+                req.getRemitterEmail(),
+                PaymentTransactionType.WALLET_TOPUP,
+                "Wallet topup"));
+    }
+
+    public TopupAccountInquiryResponse verifyTopupAccount(TopupAccountInquiryRequest req, String userId) {
+        return toTopupAccountInquiryResponse(verifyGatewayPaymentAccount(
+                req.getTopupRef(),
+                req.getRemitterBankId(),
+                req.getRemitterAccNo(),
+                userId,
+                PaymentTransactionType.WALLET_TOPUP));
+    }
+
+    public TopupDebitResponse submitTopupOtp(TopupDebitRequest req, String userId) {
+        return toTopupDebitResponse(submitGatewayPaymentOtp(
+                req.getTopupRef(),
+                req.getOtp(),
+                userId,
+                PaymentTransactionType.WALLET_TOPUP,
+                true));
+    }
+
+    public GatewayPaymentInitiateResponse initiateGatewayServicePayment(
+            ServicePaymentRequest req,
+            String userId,
+            String remitterEmail
+    ) {
+        return initiateGatewayPayment(
+                req,
+                userId,
+                remitterEmail,
+                PaymentTransactionType.SERVICE_PAYMENT,
+                "Service payment");
+    }
+
+    public GatewayPaymentAccountInquiryResponse verifyGatewayServicePaymentAccount(
+            String paymentRef,
+            String remitterBankId,
+            String remitterAccNo,
+            String userId
+    ) {
+        return verifyGatewayPaymentAccount(
+                paymentRef,
+                remitterBankId,
+                remitterAccNo,
+                userId,
+                PaymentTransactionType.SERVICE_PAYMENT);
+    }
+
+    public GatewayPaymentDebitResponse submitGatewayServicePaymentOtp(String paymentRef, String otp, String userId) {
+        return submitGatewayPaymentOtp(
+                paymentRef,
+                otp,
+                userId,
+                PaymentTransactionType.SERVICE_PAYMENT,
+                false);
+    }
+
+    private GatewayPaymentInitiateResponse initiateGatewayPayment(
+            ServicePaymentRequest req,
+            String userId,
+            String remitterEmail,
+            PaymentTransactionType transactionType,
+            String defaultDescription
+    ) {
         validateAmount(req.getAmount());
+        String normalizedRemitterEmail = validateRemitterEmail(remitterEmail);
+
+        String referenceType = null;
+        String referenceId = null;
+        if (transactionType == PaymentTransactionType.SERVICE_PAYMENT) {
+            if (isBlank(req.getReferenceType())) {
+                throw new RuntimeException("referenceType is required");
+            }
+            if (isBlank(req.getReferenceId())) {
+                throw new RuntimeException("referenceId is required");
+            }
+
+            referenceType = req.getReferenceType().trim();
+            referenceId = req.getReferenceId().trim();
+            ensureServicePaymentNotAlreadyInitiated(userId, referenceType, referenceId);
+        }
 
         String currency = defaultCurrency(req.getCurrency());
         PaymentWalletConfig config = buildRuntimeConfig("SYSTEM");
@@ -72,19 +169,22 @@ public class PaymentIntegrationService {
         transaction.setPaymentRef(UUID.randomUUID().toString());
         transaction.setGatewayOrderNo(UUID.randomUUID().toString().replace("-", ""));
         transaction.setProvider(config.getProvider());
-        transaction.setTransactionType(PaymentTransactionType.WALLET_TOPUP);
+        transaction.setTransactionType(transactionType);
         transaction.setStatus(PaymentStatus.PENDING);
         transaction.setAmount(req.getAmount().setScale(2, RoundingMode.HALF_UP));
         transaction.setCurrency(currency);
-        transaction.setDescription(safeDescription(req.getDescription()));
-        transaction.setRemitterEmail(trimToNull(req.getRemitterEmail()));
+        transaction.setDescription(safeDescription(defaultMessage(req.getDescription(), defaultDescription)));
+        transaction.setRemitterEmail(normalizedRemitterEmail);
         transaction.setUserId(userId);
+        transaction.setServiceName(trimToNull(req.getServiceName()));
+        transaction.setReferenceType(referenceType);
+        transaction.setReferenceId(referenceId);
         transaction.setExpiresAt(LocalDateTime.now().plusMinutes(15));
 
         PaymentTransaction saved = transactionWriter.saveNew(transaction);
 
         try {
-            BfsGatewayResponse bfsResponse = walletGatewayClient.initiateTopup(config, saved);
+            BfsGatewayResponse bfsResponse = walletGatewayClient.initiatePayment(config, saved);
 
             saved.setProviderTransactionId(bfsResponse.getProviderTransactionId());
             saved.setProviderResponseCode(bfsResponse.getResponseCode());
@@ -94,57 +194,52 @@ public class PaymentIntegrationService {
             transitionFromGatewayCode(saved, bfsResponse.getResponseCode());
             saved = transactionWriter.save(saved);
 
-            return TopupInitiateResponse.builder()
-                    .topupRef(saved.getPaymentRef())
-                    .providerTransactionId(saved.getProviderTransactionId())
-                    .checkoutUrl(null)
-                    .status(saved.getStatus())
-                    .responseCode(bfsResponse.getResponseCode())
-                    .responseDesc(bfsResponse.getResponseDesc())
-                    .bankList(bfsResponse.safeBankList())
-                    .expiresAt(saved.getExpiresAt())
-                    .build();
+            return toGatewayInitiateResponse(saved, bfsResponse);
         } catch (RuntimeException ex) {
             saved.setStatus(PaymentStatus.FAILED);
-            saved.setProviderMessage(defaultMessage(ex.getMessage(), "Unable to initiate BFS topup"));
+            saved.setProviderMessage(defaultMessage(ex.getMessage(),
+                    "Unable to initiate BFS " + gatewayPaymentLabel(transactionType)));
             saved = transactionWriter.save(saved);
 
-            return TopupInitiateResponse.builder()
-                    .topupRef(saved.getPaymentRef())
-                    .providerTransactionId(saved.getProviderTransactionId())
-                    .checkoutUrl(null)
-                    .status(saved.getStatus())
-                    .responseCode(saved.getProviderResponseCode())
-                    .responseDesc(saved.getProviderMessage())
-                    .bankList(java.util.Collections.emptyList())
-                    .expiresAt(saved.getExpiresAt())
-                    .build();
+            return toFailedGatewayInitiateResponse(saved);
         }
     }
 
-    public TopupAccountInquiryResponse verifyTopupAccount(TopupAccountInquiryRequest req, String userId) {
-        if (isBlank(req.getTopupRef())) {
-            throw new RuntimeException("topupRef is required");
+    private GatewayPaymentAccountInquiryResponse verifyGatewayPaymentAccount(
+            String paymentRef,
+            String remitterBankId,
+            String remitterAccNo,
+            String userId,
+            PaymentTransactionType transactionType
+    ) {
+        if (isBlank(paymentRef)) {
+            throw new RuntimeException("paymentRef is required");
         }
-        if (isBlank(req.getRemitterBankId())) {
+        if (isBlank(remitterBankId)) {
             throw new RuntimeException("remitterBankId is required");
         }
-        if (isBlank(req.getRemitterAccNo())) {
+        if (isBlank(remitterAccNo)) {
             throw new RuntimeException("remitterAccNo is required");
         }
 
-        PaymentTransaction transaction = getOwnedTopup(req.getTopupRef(), userId);
+        PaymentTransaction transaction = getOwnedGatewayPayment(paymentRef, userId, transactionType);
         ensureInteractiveStepAllowed(transaction);
+        ensurePendingPayment(transaction);
 
-        String bankId = req.getRemitterBankId().trim().toUpperCase();
+        if (isBlank(transaction.getProviderTransactionId())) {
+            throw new RuntimeException(capitalize(gatewayPaymentLabel(transactionType))
+                    + " authorization must be initiated first");
+        }
+
+        String bankId = remitterBankId.trim().toUpperCase();
         validateBankSelection(transaction, bankId);
 
         PaymentWalletConfig config = buildRuntimeConfig("SYSTEM");
         BfsGatewayResponse bfsResponse = walletGatewayClient.verifyAccount(config, transaction, bankId,
-                req.getRemitterAccNo().trim());
+                remitterAccNo.trim());
 
         transaction.setRemitterBankId(bankId);
-        transaction.setRemitterAccNoMasked(maskAccount(req.getRemitterAccNo().trim()));
+        transaction.setRemitterAccNoMasked(maskAccount(remitterAccNo.trim()));
         transaction.setProviderResponseCode(bfsResponse.getResponseCode());
         transaction.setProviderMessage(defaultMessage(bfsResponse.getResponseDesc(), "Account inquiry completed"));
         transaction.setRawAeRequest(bfsResponse.getRawRequest());
@@ -152,10 +247,12 @@ public class PaymentIntegrationService {
         transitionFromGatewayCode(transaction, bfsResponse.getResponseCode());
         transactionRepository.save(transaction);
 
-        return TopupAccountInquiryResponse.builder()
-                .topupRef(transaction.getPaymentRef())
+        return GatewayPaymentAccountInquiryResponse.builder()
+                .paymentRef(transaction.getPaymentRef())
                 .providerTransactionId(transaction.getProviderTransactionId())
                 .status(transaction.getStatus())
+                .amount(transaction.getAmount())
+                .currency(transaction.getCurrency())
                 .responseCode(bfsResponse.getResponseCode())
                 .responseDesc(bfsResponse.getResponseDesc())
                 .otpRequired("00".equals(bfsResponse.getResponseCode()))
@@ -164,43 +261,143 @@ public class PaymentIntegrationService {
                 .build();
     }
 
-    public TopupDebitResponse submitTopupOtp(TopupDebitRequest req, String userId) {
-        if (isBlank(req.getTopupRef())) {
-            throw new RuntimeException("topupRef is required");
+    private GatewayPaymentDebitResponse submitGatewayPaymentOtp(
+            String paymentRef,
+            String otp,
+            String userId,
+            PaymentTransactionType transactionType,
+            boolean creditTopupWallet
+    ) {
+        if (isBlank(paymentRef)) {
+            throw new RuntimeException("paymentRef is required");
         }
-        if (!isValidOtp(req.getOtp())) {
+        if (!isValidOtp(otp)) {
             throw new RuntimeException("otp must be exactly 6 digits");
         }
 
-        PaymentTransaction transaction = getOwnedTopup(req.getTopupRef(), userId);
+        PaymentTransaction transaction = getOwnedGatewayPayment(paymentRef, userId, transactionType);
         ensureInteractiveStepAllowed(transaction);
+        ensurePendingPayment(transaction);
 
         if (isBlank(transaction.getProviderTransactionId())) {
-            throw new RuntimeException("Topup authorization must be initiated first");
+            throw new RuntimeException(capitalize(gatewayPaymentLabel(transactionType))
+                    + " authorization must be initiated first");
         }
         if (isBlank(transaction.getRemitterBankId())) {
             throw new RuntimeException("Account inquiry must be completed before OTP submission");
         }
 
         PaymentWalletConfig config = buildRuntimeConfig("SYSTEM");
-        BfsGatewayResponse bfsResponse = walletGatewayClient.submitOtp(config, transaction, req.getOtp().trim());
+        BfsGatewayResponse bfsResponse = walletGatewayClient.submitOtp(config, transaction, otp.trim());
 
         transaction.setDebitRequestedAt(LocalDateTime.now());
-        applyDebitResult(transaction, bfsResponse);
+        applyDebitResult(transaction, bfsResponse, creditTopupWallet);
         transaction.setRawDrRequest(bfsResponse.getRawRequest());
         transaction.setRawAcResponse(bfsResponse.getRawResponse());
         transactionRepository.save(transaction);
 
-        return TopupDebitResponse.builder()
-                .topupRef(transaction.getPaymentRef())
+        return GatewayPaymentDebitResponse.builder()
+                .paymentRef(transaction.getPaymentRef())
                 .providerTransactionId(transaction.getProviderTransactionId())
                 .status(transaction.getStatus())
+                .amount(transaction.getAmount())
+                .currency(transaction.getCurrency())
                 .responseCode(transaction.getProviderResponseCode())
                 .responseDesc(transaction.getProviderMessage())
                 .debitAuthCode(transaction.getDebitAuthCode())
                 .debitAuthNo(transaction.getDebitAuthNo())
                 .remitterName(transaction.getRemitterName())
                 .remitterBankId(transaction.getRemitterBankId())
+                .build();
+    }
+
+    private void ensureServicePaymentNotAlreadyInitiated(String userId, String referenceType, String referenceId) {
+        transactionRepository
+                .findFirstByUserIdAndReferenceTypeAndReferenceIdAndTransactionTypeAndStatusInOrderByCreatedAtDesc(
+                        userId,
+                        referenceType,
+                        referenceId,
+                        PaymentTransactionType.SERVICE_PAYMENT,
+                        List.of(PaymentStatus.PENDING, PaymentStatus.SUCCESS)
+                )
+                .ifPresent(existing -> {
+                    if (existing.getStatus() == PaymentStatus.PENDING && expireIfNeeded(existing)) {
+                        return;
+                    }
+                    throw new RuntimeException("Payment already initiated for this reference");
+                });
+    }
+
+    private GatewayPaymentInitiateResponse toGatewayInitiateResponse(
+            PaymentTransaction transaction,
+            BfsGatewayResponse bfsResponse
+    ) {
+        return GatewayPaymentInitiateResponse.builder()
+                .paymentRef(transaction.getPaymentRef())
+                .providerTransactionId(transaction.getProviderTransactionId())
+                .checkoutUrl(null)
+                .status(transaction.getStatus())
+                .amount(transaction.getAmount())
+                .currency(transaction.getCurrency())
+                .responseCode(bfsResponse.getResponseCode())
+                .responseDesc(bfsResponse.getResponseDesc())
+                .bankList(bfsResponse.safeBankList())
+                .expiresAt(transaction.getExpiresAt())
+                .build();
+    }
+
+    private GatewayPaymentInitiateResponse toFailedGatewayInitiateResponse(PaymentTransaction transaction) {
+        return GatewayPaymentInitiateResponse.builder()
+                .paymentRef(transaction.getPaymentRef())
+                .providerTransactionId(transaction.getProviderTransactionId())
+                .checkoutUrl(null)
+                .status(transaction.getStatus())
+                .amount(transaction.getAmount())
+                .currency(transaction.getCurrency())
+                .responseCode(transaction.getProviderResponseCode())
+                .responseDesc(transaction.getProviderMessage())
+                .bankList(Collections.emptyList())
+                .expiresAt(transaction.getExpiresAt())
+                .build();
+    }
+
+    private TopupInitiateResponse toTopupInitiateResponse(GatewayPaymentInitiateResponse response) {
+        return TopupInitiateResponse.builder()
+                .topupRef(response.getPaymentRef())
+                .providerTransactionId(response.getProviderTransactionId())
+                .checkoutUrl(response.getCheckoutUrl())
+                .status(response.getStatus())
+                .responseCode(response.getResponseCode())
+                .responseDesc(response.getResponseDesc())
+                .bankList(response.getBankList())
+                .expiresAt(response.getExpiresAt())
+                .build();
+    }
+
+    private TopupAccountInquiryResponse toTopupAccountInquiryResponse(GatewayPaymentAccountInquiryResponse response) {
+        return TopupAccountInquiryResponse.builder()
+                .topupRef(response.getPaymentRef())
+                .providerTransactionId(response.getProviderTransactionId())
+                .status(response.getStatus())
+                .responseCode(response.getResponseCode())
+                .responseDesc(response.getResponseDesc())
+                .otpRequired(response.isOtpRequired())
+                .remitterBankId(response.getRemitterBankId())
+                .remitterAccNoMasked(response.getRemitterAccNoMasked())
+                .build();
+    }
+
+    private TopupDebitResponse toTopupDebitResponse(GatewayPaymentDebitResponse response) {
+        return TopupDebitResponse.builder()
+                .topupRef(response.getPaymentRef())
+                .providerTransactionId(response.getProviderTransactionId())
+                .status(response.getStatus())
+                .responseCode(response.getResponseCode())
+                .responseDesc(response.getResponseDesc())
+                .debitAuthCode(response.getDebitAuthCode())
+                .debitAuthNo(response.getDebitAuthNo())
+                .remitterName(response.getRemitterName())
+                .remitterBankId(response.getRemitterBankId())
                 .build();
     }
 
@@ -216,7 +413,7 @@ public class PaymentIntegrationService {
                 .build();
     }
 
-    public WalletPaymentResult payWithWallet(WalletPaymentRequest req, String userId) {
+    public WalletPaymentResult payWithWallet(ServicePaymentRequest req, String userId) {
         validateAmount(req.getAmount());
 
         if (isBlank(req.getReferenceType())) {
@@ -390,6 +587,41 @@ public class PaymentIntegrationService {
         }
 
         return original.getAmount();
+    }
+
+    public String getPendingGatewayServicePaymentReferenceId(String paymentRef, String userId, String expectedReferenceType) {
+        PaymentTransaction transaction = getOwnedGatewayServicePayment(paymentRef, userId);
+        ensureServicePaymentReferenceType(transaction, expectedReferenceType);
+        ensureInteractiveStepAllowed(transaction);
+        ensurePendingPayment(transaction);
+        return transaction.getReferenceId();
+    }
+
+    public String getSuccessfulGatewayServicePaymentReferenceId(String paymentRef, String userId, String expectedReferenceType) {
+        PaymentTransaction transaction = getOwnedGatewayServicePayment(paymentRef, userId);
+        ensureServicePaymentReferenceType(transaction, expectedReferenceType);
+        ensureSuccessfulPayment(transaction);
+        return transaction.getReferenceId();
+    }
+
+    public BigDecimal getSuccessfulGatewayServicePaymentAmount(String paymentRef, String userId, String expectedReferenceType) {
+        PaymentTransaction transaction = getOwnedGatewayServicePayment(paymentRef, userId);
+        ensureServicePaymentReferenceType(transaction, expectedReferenceType);
+        ensureSuccessfulPayment(transaction);
+        return transaction.getAmount();
+    }
+
+    public String getSuccessfulGatewayFundingSummary(String paymentRef, String userId, String expectedReferenceType) {
+        PaymentTransaction transaction = getOwnedGatewayServicePayment(paymentRef, userId);
+        ensureServicePaymentReferenceType(transaction, expectedReferenceType);
+        ensureSuccessfulPayment(transaction);
+
+        StringBuilder summary = new StringBuilder("gateway payment");
+        appendSummaryPart(summary, "bank", transaction.getRemitterBankId());
+        appendSummaryPart(summary, "account", transaction.getRemitterAccNoMasked());
+        appendSummaryPart(summary, "remitter", transaction.getRemitterName());
+        appendSummaryPart(summary, "paymentRef", transaction.getPaymentRef());
+        return summary.toString();
     }
 
     public BigDecimal getSuccessfulSettlementAmount(String originalPaymentRef, String referenceType) {
@@ -595,11 +827,24 @@ public class PaymentIntegrationService {
     }
 
     public PaymentStatusResponse getTopupStatus(String paymentRef, String userId) {
-        PaymentTransaction transaction = getOwnedTopup(paymentRef, userId);
+        return getGatewayPaymentStatus(paymentRef, userId, PaymentTransactionType.WALLET_TOPUP, true);
+    }
+
+    public PaymentStatusResponse getGatewayServicePaymentStatus(String paymentRef, String userId) {
+        return getGatewayPaymentStatus(paymentRef, userId, PaymentTransactionType.SERVICE_PAYMENT, false);
+    }
+
+    private PaymentStatusResponse getGatewayPaymentStatus(
+            String paymentRef,
+            String userId,
+            PaymentTransactionType transactionType,
+            boolean creditTopupWallet
+    ) {
+        PaymentTransaction transaction = getOwnedGatewayPayment(paymentRef, userId, transactionType);
 
         if (transaction.getStatus() == PaymentStatus.PENDING && transaction.getDebitRequestedAt() != null) {
             if (shouldPollStatus(transaction)) {
-                pollGatewayStatus(transaction);
+                pollGatewayStatus(transaction, creditTopupWallet);
             }
             return toPaymentStatus(transaction);
         }
@@ -608,7 +853,7 @@ public class PaymentIntegrationService {
         return toPaymentStatus(transaction);
     }
 
-    private void pollGatewayStatus(PaymentTransaction transaction) {
+    private void pollGatewayStatus(PaymentTransaction transaction, boolean creditTopupWallet) {
         PaymentWalletConfig config = buildRuntimeConfig("SYSTEM");
         BfsGatewayResponse bfsResponse = walletGatewayClient.checkStatus(config, transaction);
 
@@ -616,7 +861,7 @@ public class PaymentIntegrationService {
         transaction.setLastStatusCheckedAt(LocalDateTime.now());
         transaction.setRawAsRequest(bfsResponse.getRawRequest());
         transaction.setRawAsResponse(bfsResponse.getRawResponse());
-        applyDebitResult(transaction, bfsResponse);
+        applyDebitResult(transaction, bfsResponse, creditTopupWallet);
 
         if (transaction.getStatus() == PaymentStatus.PENDING
                 && statusCheckCount(transaction) >= MAX_STATUS_CHECK_COUNT) {
@@ -644,7 +889,11 @@ public class PaymentIntegrationService {
         return transaction.getStatusCheckCount() == null ? 0 : transaction.getStatusCheckCount();
     }
 
-    private void applyDebitResult(PaymentTransaction transaction, BfsGatewayResponse bfsResponse) {
+    private void applyDebitResult(
+            PaymentTransaction transaction,
+            BfsGatewayResponse bfsResponse,
+            boolean creditTopupWallet
+    ) {
         transaction.setProviderTransactionId(
                 defaultValue(bfsResponse.getProviderTransactionId(), transaction.getProviderTransactionId()));
         transaction.setGatewayTransactionTime(
@@ -659,7 +908,7 @@ public class PaymentIntegrationService {
 
         if ("00".equals(transaction.getDebitAuthCode())) {
             transaction.setStatus(PaymentStatus.SUCCESS);
-            if (transaction.getWalletCreditedAt() == null) {
+            if (creditTopupWallet && transaction.getWalletCreditedAt() == null) {
                 creditWalletForTopup(transaction);
             }
             if (isBlank(transaction.getProviderMessage())) {
@@ -679,22 +928,52 @@ public class PaymentIntegrationService {
         transaction.setStatus(PaymentStatus.FAILED);
     }
 
-    private PaymentTransaction getOwnedTopup(String paymentRef, String userId) {
+    private PaymentTransaction getOwnedGatewayServicePayment(String paymentRef, String userId) {
+        return getOwnedGatewayPayment(paymentRef, userId, PaymentTransactionType.SERVICE_PAYMENT);
+    }
+
+    private PaymentTransaction getOwnedGatewayPayment(
+            String paymentRef,
+            String userId,
+            PaymentTransactionType transactionType
+    ) {
         PaymentTransaction transaction = transactionRepository.findByPaymentRef(paymentRef)
                 .orElseThrow(() -> new RuntimeException("Payment transaction not found"));
 
         if (!transaction.getUserId().equals(userId)) {
-            throw new RuntimeException("Unauthorized payment status access");
+            throw new RuntimeException("Unauthorized payment access");
         }
-        if (transaction.getTransactionType() != PaymentTransactionType.WALLET_TOPUP) {
-            throw new RuntimeException("Unsupported transaction type");
+        if (transaction.getTransactionType() != transactionType
+                || transaction.getProvider() == PaymentProvider.INTERNAL_WALLET) {
+            throw new RuntimeException("Unsupported payment transaction");
         }
         return transaction;
     }
 
+    private void ensurePendingPayment(PaymentTransaction transaction) {
+        if (transaction.getStatus() != PaymentStatus.PENDING) {
+            throw new RuntimeException("Payment is not pending");
+        }
+    }
+
+    private void ensureSuccessfulPayment(PaymentTransaction transaction) {
+        if (transaction.getStatus() != PaymentStatus.SUCCESS) {
+            throw new RuntimeException("Payment is not successful");
+        }
+    }
+
+    private void ensureServicePaymentReferenceType(PaymentTransaction transaction, String expectedReferenceType) {
+        if (isBlank(expectedReferenceType)) {
+            throw new RuntimeException("referenceType is required");
+        }
+        if (!expectedReferenceType.trim().equals(transaction.getReferenceType())) {
+            throw new RuntimeException("Payment reference type mismatch");
+        }
+    }
+
     private void ensureInteractiveStepAllowed(PaymentTransaction transaction) {
         if (expireIfNeeded(transaction)) {
-            throw new RuntimeException("Topup session expired");
+            throw new RuntimeException("Payment session expired");
         }
     }
 
@@ -703,7 +982,7 @@ public class PaymentIntegrationService {
                 && transaction.getExpiresAt().isBefore(LocalDateTime.now())
                 && transaction.getStatus() == PaymentStatus.PENDING) {
             transaction.setStatus(PaymentStatus.EXPIRED);
-            transaction.setProviderMessage("Topup session expired");
+            transaction.setProviderMessage("Payment session expired");
             transactionRepository.save(transaction);
             return true;
         }
@@ -716,10 +995,21 @@ public class PaymentIntegrationService {
         }
     }
 
+    private String validateRemitterEmail(String remitterEmail) {
+        String normalized = trimToNull(remitterEmail);
+        if (normalized == null) {
+            throw new RuntimeException("remitterEmail is required");
+        }
+        if (!REMITTER_EMAIL_PATTERN.matcher(normalized).matches()) {
+            throw new RuntimeException("remitterEmail must be a valid email address");
+        }
+        return normalized;
+    }
+
     private void validateBankSelection(PaymentTransaction transaction, String bankId) {
         Set<String> offeredBanks = extractOfferedBankIds(transaction);
         if (!offeredBanks.isEmpty() && !offeredBanks.contains(bankId)) {
-            throw new RuntimeException("Selected remitter bank was not offered for this topup session");
+            throw new RuntimeException("Selected remitter bank was not offered for this payment session");
         }
     }
 
@@ -856,12 +1146,29 @@ public class PaymentIntegrationService {
         return isBlank(primary) ? fallback : primary;
     }
 
+    private String gatewayPaymentLabel(PaymentTransactionType transactionType) {
+        return transactionType == PaymentTransactionType.WALLET_TOPUP ? "topup" : "service payment";
+    }
+
+    private String capitalize(String value) {
+        if (isBlank(value)) {
+            return value;
+        }
+        return value.substring(0, 1).toUpperCase() + value.substring(1);
+    }
+
     private LocalDateTime defaultTime(LocalDateTime primary, LocalDateTime fallback) {
         return primary != null ? primary : fallback;
     }
 
     private String trimToNull(String value) {
         return isBlank(value) ? null : value.trim();
+    }
+
+    private void appendSummaryPart(StringBuilder summary, String label, String value) {
+        if (!isBlank(value)) {
+            summary.append(", ").append(label).append("=").append(value.trim());
+        }
     }
 
     private boolean isBlank(String value) {

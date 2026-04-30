@@ -17,7 +17,7 @@ import com.goBhutan.adminPanel.hotel.entity.Room;
 import com.goBhutan.adminPanel.hotel.repository.BookingSummary;
 import com.goBhutan.adminPanel.hotel.repository.HotelRepository;
 import com.goBhutan.adminPanel.hotel.repository.RoomRepository;
-import com.goBhutan.adminPanel.paymentInt.dto.WalletPaymentRequest;
+import com.goBhutan.adminPanel.paymentInt.dto.ServicePaymentRequest;
 import com.goBhutan.adminPanel.paymentInt.dto.WalletPaymentResult;
 import com.goBhutan.adminPanel.paymentInt.service.PaymentIntegrationService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -148,7 +148,7 @@ public class BookingService {
 
         BigDecimal totalAmount = booking.getTotalAmount();
 
-        WalletPaymentRequest paymentRequest = new WalletPaymentRequest();
+        ServicePaymentRequest paymentRequest = new ServicePaymentRequest();
         paymentRequest.setAmount(totalAmount);
         paymentRequest.setCurrency("BTN");
         paymentRequest.setServiceName("HOTEL");

@@ -11,14 +11,14 @@ import com.goBhutan.adminPanel.busAdmin.repository.BusScheduleRepository;
 import com.goBhutan.adminPanel.busAdmin.repository.SeatBookingRepository;
 import com.goBhutan.adminPanel.common.entity.AppUser;
 import com.goBhutan.adminPanel.common.service.AppUserService;
-import com.goBhutan.adminPanel.paymentInt.dto.WalletPaymentRequest;
+import com.goBhutan.adminPanel.paymentInt.dto.ServicePaymentRequest;
 import com.goBhutan.adminPanel.paymentInt.dto.WalletPaymentResult;
 import com.goBhutan.adminPanel.paymentInt.service.PaymentIntegrationService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
@@ -26,19 +26,23 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 @Service
 @Transactional
 @RequiredArgsConstructor
+@Slf4j
 public class BusBookingService {
 
     private static final String APP_OWNER_USERNAME = "YAYAOWNER";
     private static final String PAYMENT_METHOD_WALLET = "WALLET";
     private static final String PAYMENT_METHOD_CASH = "CASH";
+    private static final String PAYMENT_METHOD_DIRECT_GATEWAY = "DIRECT_GATEWAY";
     private static final String BUS_BOOKING_REFERENCE_TYPE = "BUS_BOOKING";
     private static final String BUS_APP_CHARGE_REFERENCE_TYPE = "BUS_APP_CHARGE";
+    private static final String DIRECT_GATEWAY_PAYMENT_DESCRIPTION = "Direct Gateway Payment";
 
     private final BusScheduleRepository scheduleRepo;
     private final SeatBookingRepository bookingRepo;
@@ -57,7 +61,6 @@ public class BusBookingService {
     public List<SeatBooking> lockSeats(
             Long scheduleId,
             List<Integer> seatNumbers,
-            List<String> seatLabels,
             String userId,
             String cid,
             String mobile,
@@ -72,8 +75,7 @@ public class BusBookingService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // Release expired locks
-        bookingRepo.releaseExpiredLocks(now);
+        releaseExpiredLocks(now, "seat-lock");
 
         // Step 2 — Lock parent schedule
         Schedule schedule = scheduleRepo.lockSchedule(scheduleId);
@@ -148,7 +150,6 @@ public class BusBookingService {
     public List<SeatBooking> lockCashSeats(
             Long scheduleId,
             List<Integer> seatNumbers,
-            List<String> seatLabels,
             String adminUserId,
             String cid,
             String mobile,
@@ -163,7 +164,7 @@ public class BusBookingService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        bookingRepo.releaseExpiredLocks(now);
+        releaseExpiredLocks(now, "cash-seat-lock");
 
         Schedule schedule = scheduleRepo.lockSchedule(scheduleId);
         ensureScheduleBookable(schedule);
@@ -231,6 +232,7 @@ public class BusBookingService {
         ensureScheduleBookable(schedule);
 
         LocalDateTime now = LocalDateTime.now();
+        releaseExpiredLocks(now, "seat-status");
         if (schedule.getDepartureTime() != null && !schedule.getDepartureTime().isAfter(now)) {
             throw new RuntimeException("Cannot view seats for a departed schedule");
         }
@@ -266,6 +268,115 @@ public class BusBookingService {
 
 
     @Transactional
+    public List<SeatBooking> confirmBookingWithPaymentMethod(String bookingRef, String userId, String paymentMethod) {
+        String normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
+
+        if (PAYMENT_METHOD_WALLET.equals(normalizedPaymentMethod)) {
+            return confirmBooking(bookingRef, userId);
+        }
+
+        if (PAYMENT_METHOD_CASH.equals(normalizedPaymentMethod)) {
+            return confirmCashBooking(bookingRef, userId);
+        }
+
+        if (PAYMENT_METHOD_DIRECT_GATEWAY.equals(normalizedPaymentMethod)) {
+            throw new RuntimeException("Direct gateway payment must use direct-gateway-payment endpoints");
+        }
+
+        throw new RuntimeException("Unsupported payment method: " + paymentMethod);
+    }
+
+    @Transactional
+    public ServicePaymentRequest buildDirectGatewayPaymentRequest(
+            String bookingRef,
+            String userId,
+            BigDecimal requestedAmount,
+            String requestedCurrency,
+            String requestedDescription
+    ) {
+        List<SeatBooking> bookings = getLockedUserBookingsForPayment(bookingRef, userId, true);
+
+        Schedule schedule = scheduleRepo.lockSchedule(bookings.get(0).getSchedule().getId());
+        ensureScheduleBookable(schedule);
+
+        LocalDateTime now = LocalDateTime.now();
+        if (schedule.getDepartureTime() != null && !schedule.getDepartureTime().isAfter(now)) {
+            throw new RuntimeException("Cannot pay for seats on a departed schedule");
+        }
+
+        ensureBookingFareSnapshots(bookings, schedule);
+        List<SeatBooking> savedBookings = bookingRepo.saveAll(bookings);
+        BigDecimal calculatedAmount = sumFinalFare(savedBookings);
+        validateDirectGatewayInitiateRequest(calculatedAmount, requestedAmount, requestedCurrency);
+
+        ServicePaymentRequest paymentRequest = new ServicePaymentRequest();
+        paymentRequest.setAmount(calculatedAmount);
+        paymentRequest.setCurrency("BTN");
+        paymentRequest.setServiceName("BUS");
+        paymentRequest.setReferenceType(BUS_BOOKING_REFERENCE_TYPE);
+        paymentRequest.setReferenceId(bookingRef);
+        paymentRequest.setDescription(directGatewayPaymentDescription(requestedDescription));
+        return paymentRequest;
+    }
+
+    @Transactional
+    public void extendDirectGatewayPaymentLock(String bookingRef, String userId, LocalDateTime expiresAt) {
+        if (expiresAt == null) {
+            return;
+        }
+
+        List<SeatBooking> bookings = getLockedUserBookingsForPayment(bookingRef, userId, false);
+        for (SeatBooking booking : bookings) {
+            if (booking.getLockExpiry() == null || booking.getLockExpiry().isBefore(expiresAt)) {
+                booking.setLockExpiry(expiresAt);
+            }
+        }
+        bookingRepo.saveAll(bookings);
+    }
+
+    @Transactional
+    public String ensureDirectGatewayPaymentCanContinue(String paymentRef, String userId) {
+        String bookingRef = paymentService.getPendingGatewayServicePaymentReferenceId(
+                paymentRef,
+                userId,
+                BUS_BOOKING_REFERENCE_TYPE);
+        getLockedUserBookingsForPayment(bookingRef, userId, true);
+        return bookingRef;
+    }
+
+    @Transactional
+    public String ensureDirectGatewayPaymentCanDebit(String paymentRef, String userId) {
+        String bookingRef = ensureDirectGatewayPaymentCanContinue(paymentRef, userId);
+        extendDirectGatewayPaymentLock(bookingRef, userId, LocalDateTime.now().plusMinutes(15));
+        return bookingRef;
+    }
+
+    @Transactional
+    public List<SeatBooking> confirmDirectGatewayPaymentBooking(String paymentRef, String userId) {
+        String bookingRef = paymentService.getSuccessfulGatewayServicePaymentReferenceId(
+                paymentRef,
+                userId,
+                BUS_BOOKING_REFERENCE_TYPE);
+        BigDecimal paidAmount = paymentService.getSuccessfulGatewayServicePaymentAmount(
+                paymentRef,
+                userId,
+                BUS_BOOKING_REFERENCE_TYPE);
+        String gatewayFundingSummary = paymentService.getSuccessfulGatewayFundingSummary(
+                paymentRef,
+                userId,
+                BUS_BOOKING_REFERENCE_TYPE);
+
+        return confirmPaidBooking(
+                bookingRef,
+                userId,
+                paymentRef,
+                PAYMENT_METHOD_DIRECT_GATEWAY,
+                paidAmount,
+                false,
+                gatewayFundingSummary);
+    }
+
+    @Transactional
     public List<SeatBooking> confirmBooking(String bookingRef, String userId) {
 
         List<SeatBooking> bookings = bookingRepo.findByBookingRefForUpdate(bookingRef);
@@ -285,6 +396,9 @@ public class BusBookingService {
         if (bookings.stream().anyMatch(b -> b.getLockExpiry() == null || b.getLockExpiry().isBefore(now)))
             throw new RuntimeException("Seat lock expired");
 
+        if (bookings.stream().anyMatch(b -> PAYMENT_METHOD_CASH.equalsIgnoreCase(b.getPaymentMethod())))
+            throw new RuntimeException("Cash locked booking must be confirmed with CASH payment method");
+
         Schedule schedule = scheduleRepo.lockSchedule(bookings.get(0).getSchedule().getId());
         ensureScheduleBookable(schedule);
 
@@ -294,13 +408,11 @@ public class BusBookingService {
 
         ensureBookingFareSnapshots(bookings, schedule);
         BigDecimal totalAmount = sumFinalFare(bookings);
-        BigDecimal ownerSettlementAmount = sumBaseFare(bookings);
-        BigDecimal appChargeSettlementAmount = sumAppCharges(bookings);
 
         if (bookings.stream().anyMatch(b -> b.getWalletPaymentRef() != null && !b.getWalletPaymentRef().isBlank()))
             throw new RuntimeException("Wallet payment already processed for this booking");
 
-        WalletPaymentRequest paymentRequest = new WalletPaymentRequest();
+        ServicePaymentRequest paymentRequest = new ServicePaymentRequest();
         paymentRequest.setAmount(totalAmount);
         paymentRequest.setCurrency("BTN");
         paymentRequest.setServiceName("BUS");
@@ -310,46 +422,14 @@ public class BusBookingService {
 
         WalletPaymentResult walletPayment = paymentService.payWithWallet(paymentRequest, userId);
 
-        if (ownerSettlementAmount.compareTo(BigDecimal.ZERO) > 0) {
-            paymentService.creditServiceSettlement(
-                    walletPayment.getPaymentRef(),
-                    ownerSettlementAmount,
-                    "BUS",
-                    BUS_BOOKING_REFERENCE_TYPE,
-                    bookingRef,
-                    "Bus booking fare settlement",
-                    schedule.getBus().getAdminUserId()
-            );
-        }
-
-        if (appChargeSettlementAmount.compareTo(BigDecimal.ZERO) > 0) {
-            paymentService.creditServiceSettlement(
-                    walletPayment.getPaymentRef(),
-                    appChargeSettlementAmount,
-                    "BUS",
-                    BUS_APP_CHARGE_REFERENCE_TYPE,
-                    bookingRef,
-                    "Bus booking app charge settlement",
-                    getAppOwnerUserId()
-            );
-        }
-
-        // Confirm seats
-        for (SeatBooking b : bookings) {
-            b.setWalletPaymentRef(walletPayment.getPaymentRef());
-            b.setPaymentMethod(PAYMENT_METHOD_WALLET);
-            b.setStatus(BookingStatus.BOOKED);
-            b.setLockExpiry(null);
-        }
-
-        // Reduce seats count
-        schedule.setAvailableSeats(schedule.getAvailableSeats() - bookings.size());
-
-        List<SeatBooking> saved = bookingRepo.saveAll(bookings);
-
-        broadcastService.broadcastSeatUpdate(schedule.getId());
-
-        return saved;
+        return confirmPaidBooking(
+                bookingRef,
+                userId,
+                walletPayment.getPaymentRef(),
+                PAYMENT_METHOD_WALLET,
+                walletPayment.getAmount(),
+                true,
+                null);
     }
 
     @Transactional
@@ -399,6 +479,123 @@ public class BusBookingService {
         return saved;
     }
 
+    private List<SeatBooking> confirmPaidBooking(
+            String bookingRef,
+            String userId,
+            String paymentRef,
+            String paymentMethod,
+            BigDecimal paidAmount,
+            boolean requireUnexpiredLock,
+            String gatewayFundingSummary
+    ) {
+        List<SeatBooking> bookings = bookingRepo.findByBookingRefForUpdate(bookingRef);
+
+        if (bookings.isEmpty())
+            throw new RuntimeException("Invalid or expired booking reference");
+
+        if (bookings.stream().anyMatch(b -> !b.getUserId().equals(userId)))
+            throw new RuntimeException("Unauthorized confirmation attempt");
+
+        boolean alreadyConfirmedWithSamePayment = bookings.stream().allMatch(b ->
+                b.getStatus() == BookingStatus.BOOKED
+                        && paymentMethod.equalsIgnoreCase(b.getPaymentMethod())
+                        && paymentRef.equals(b.getWalletPaymentRef()));
+        if (alreadyConfirmedWithSamePayment) {
+            return bookings;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        if (bookings.stream().anyMatch(b -> b.getStatus() != BookingStatus.LOCKED))
+            throw new RuntimeException("Booking is no longer pending confirmation");
+
+        if (requireUnexpiredLock
+                && bookings.stream().anyMatch(b -> b.getLockExpiry() == null || b.getLockExpiry().isBefore(now)))
+            throw new RuntimeException("Seat lock expired");
+
+        if (bookings.stream().anyMatch(b -> PAYMENT_METHOD_CASH.equalsIgnoreCase(b.getPaymentMethod())))
+            throw new RuntimeException("Cash locked booking cannot be confirmed with online payment");
+
+        if (bookings.stream().anyMatch(b -> b.getWalletPaymentRef() != null
+                && !b.getWalletPaymentRef().isBlank()
+                && !paymentRef.equals(b.getWalletPaymentRef())))
+            throw new RuntimeException("A different payment is already linked to this booking");
+
+        Schedule schedule = scheduleRepo.lockSchedule(bookings.get(0).getSchedule().getId());
+        ensureScheduleBookable(schedule);
+
+        if (schedule.getDepartureTime() != null && !schedule.getDepartureTime().isAfter(now)) {
+            throw new RuntimeException("Cannot confirm seats for a departed schedule");
+        }
+
+        ensureBookingFareSnapshots(bookings, schedule);
+        BigDecimal totalAmount = sumFinalFare(bookings);
+        if (money(paidAmount).compareTo(totalAmount) != 0) {
+            throw new RuntimeException("Paid amount does not match booking amount");
+        }
+
+        creditBusSettlements(paymentRef, bookingRef, schedule, bookings, paymentMethod, gatewayFundingSummary);
+
+        for (SeatBooking booking : bookings) {
+            booking.setWalletPaymentRef(paymentRef);
+            booking.setPaymentMethod(paymentMethod);
+            booking.setStatus(BookingStatus.BOOKED);
+            booking.setLockExpiry(null);
+        }
+
+        decreaseAvailableSeats(schedule, bookings.size());
+
+        List<SeatBooking> saved = bookingRepo.saveAll(bookings);
+
+        broadcastService.broadcastSeatUpdate(schedule.getId());
+
+        return saved;
+    }
+
+    private void creditBusSettlements(
+            String paymentRef,
+            String bookingRef,
+            Schedule schedule,
+            List<SeatBooking> bookings,
+            String paymentMethod,
+            String gatewayFundingSummary
+    ) {
+        BigDecimal ownerSettlementAmount = sumBaseFare(bookings);
+        BigDecimal appChargeSettlementAmount = sumAppCharges(bookings);
+        String ownerSettlementDescription = settlementDescription(
+                paymentMethod,
+                "Bus booking base fare settlement",
+                gatewayFundingSummary);
+        String appChargeSettlementDescription = settlementDescription(
+                paymentMethod,
+                "Bus booking app charge settlement",
+                gatewayFundingSummary);
+
+        if (ownerSettlementAmount.compareTo(BigDecimal.ZERO) > 0) {
+            paymentService.creditServiceSettlement(
+                    paymentRef,
+                    ownerSettlementAmount,
+                    "BUS",
+                    BUS_BOOKING_REFERENCE_TYPE,
+                    bookingRef,
+                    ownerSettlementDescription,
+                    getBusOwnerSettlementUserId(schedule)
+            );
+        }
+
+        if (appChargeSettlementAmount.compareTo(BigDecimal.ZERO) > 0) {
+            paymentService.creditServiceSettlement(
+                    paymentRef,
+                    appChargeSettlementAmount,
+                    "BUS",
+                    BUS_APP_CHARGE_REFERENCE_TYPE,
+                    bookingRef,
+                    appChargeSettlementDescription,
+                    getAppOwnerUserId()
+            );
+        }
+    }
+
 
 
     /**
@@ -444,6 +641,10 @@ public class BusBookingService {
                 return savedBooking;
             }
 
+            if (PAYMENT_METHOD_DIRECT_GATEWAY.equalsIgnoreCase(targetBooking.getPaymentMethod())) {
+                throw new RuntimeException("Direct payment cancellation requires gateway refund reconciliation");
+            }
+
             if (walletPaymentRef == null || walletPaymentRef.isBlank()) {
                 throw new RuntimeException("Missing wallet payment reference for booked seat");
             }
@@ -475,7 +676,7 @@ public class BusBookingService {
                         BUS_BOOKING_REFERENCE_TYPE,
                         targetBooking.getBookingRef(),
                         "Bus booking fare settlement reversal",
-                        schedule.getBus().getAdminUserId()
+                        getBusOwnerSettlementUserId(schedule)
                 );
             }
 
@@ -611,6 +812,64 @@ public class BusBookingService {
         return now.plusMinutes(seatLockMinutes);
     }
 
+    private int releaseExpiredLocks(LocalDateTime now, String trigger) {
+        List<SeatBooking> expiredLocks = bookingRepo.findExpiredLockedSeats(now);
+        if (expiredLocks.isEmpty()) {
+            return 0;
+        }
+
+        int released = bookingRepo.releaseExpiredLocks(now);
+        log.info(
+                "expired-lock-release trigger={} detected={} released={}",
+                trigger,
+                expiredLocks.size(),
+                released);
+
+        expiredLocks.stream()
+                .map(SeatBooking::getSchedule)
+                .filter(schedule -> schedule != null && schedule.getId() != null)
+                .map(Schedule::getId)
+                .distinct()
+                .forEach(broadcastService::broadcastSeatUpdate);
+
+        return released;
+    }
+
+    private List<SeatBooking> getLockedUserBookingsForPayment(
+            String bookingRef,
+            String userId,
+            boolean requireUnexpiredLock
+    ) {
+        if (isBlank(bookingRef)) {
+            throw new RuntimeException("bookingRef is required");
+        }
+
+        List<SeatBooking> bookings = bookingRepo.findByBookingRefForUpdate(bookingRef);
+
+        if (bookings.isEmpty())
+            throw new RuntimeException("Invalid or expired booking reference");
+
+        if (bookings.stream().anyMatch(b -> !b.getUserId().equals(userId)))
+            throw new RuntimeException("Unauthorized payment attempt");
+
+        LocalDateTime now = LocalDateTime.now();
+
+        if (bookings.stream().anyMatch(b -> b.getStatus() != BookingStatus.LOCKED))
+            throw new RuntimeException("Booking is no longer pending payment");
+
+        if (requireUnexpiredLock
+                && bookings.stream().anyMatch(b -> b.getLockExpiry() == null || b.getLockExpiry().isBefore(now)))
+            throw new RuntimeException("Seat lock expired");
+
+        if (bookings.stream().anyMatch(b -> PAYMENT_METHOD_CASH.equalsIgnoreCase(b.getPaymentMethod())))
+            throw new RuntimeException("Cash locked booking cannot be paid online");
+
+        if (bookings.stream().anyMatch(b -> b.getWalletPaymentRef() != null && !b.getWalletPaymentRef().isBlank()))
+            throw new RuntimeException("Payment already initiated for this booking");
+
+        return bookings;
+    }
+
     private boolean matchesCurrentAdmin(String storedUserId, String currentKeycloakId) {
         if (isBlank(storedUserId) || isBlank(currentKeycloakId)) {
             return false;
@@ -631,6 +890,27 @@ public class BusBookingService {
                 .map(AppUser::getUsername)
                 .filter(storedUserId::equals)
                 .isPresent();
+    }
+
+    private String getBusOwnerSettlementUserId(Schedule schedule) {
+        if (schedule == null || schedule.getBus() == null || isBlank(schedule.getBus().getAdminUserId())) {
+            throw new RuntimeException("Bus owner user is not configured");
+        }
+
+        String storedUserId = schedule.getBus().getAdminUserId();
+        return appUserService.findByUsername(storedUserId)
+                .map(AppUser::getKeycloakId)
+                .filter(keycloakId -> !isBlank(keycloakId))
+                .orElse(storedUserId);
+    }
+
+    private String settlementDescription(String paymentMethod, String baseDescription, String gatewayFundingSummary) {
+        if (!PAYMENT_METHOD_DIRECT_GATEWAY.equalsIgnoreCase(paymentMethod) || isBlank(gatewayFundingSummary)) {
+            return baseDescription;
+        }
+
+        String description = baseDescription + " from " + gatewayFundingSummary;
+        return description.length() > 250 ? description.substring(0, 250) : description;
     }
 
     private void decreaseAvailableSeats(Schedule schedule, int bookedSeatCount) {
@@ -732,12 +1012,53 @@ public class BusBookingService {
         return fare != null ? money(fare) : money(fallback);
     }
 
+    private void validateDirectGatewayInitiateRequest(
+            BigDecimal calculatedAmount,
+            BigDecimal requestedAmount,
+            String requestedCurrency
+    ) {
+        if (requestedAmount == null) {
+            throw new RuntimeException("amount is required");
+        }
+        if (money(requestedAmount).compareTo(money(calculatedAmount)) != 0) {
+            throw new RuntimeException("Requested amount does not match locked seat amount");
+        }
+
+        String currency = isBlank(requestedCurrency) ? "BTN" : requestedCurrency.trim().toUpperCase(Locale.ROOT);
+        if (!"BTN".equals(currency)) {
+            throw new RuntimeException("currency must be BTN");
+        }
+    }
+
+    private String directGatewayPaymentDescription(String requestedDescription) {
+        if (!isBlank(requestedDescription)
+                && !DIRECT_GATEWAY_PAYMENT_DESCRIPTION.equalsIgnoreCase(requestedDescription.trim())) {
+            throw new RuntimeException("description must be Direct Gateway Payment");
+        }
+        return DIRECT_GATEWAY_PAYMENT_DESCRIPTION;
+    }
+
     private BigDecimal money(BigDecimal value) {
         return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
     }
 
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private String normalizePaymentMethod(String paymentMethod) {
+        if (isBlank(paymentMethod)) {
+            return PAYMENT_METHOD_WALLET;
+        }
+
+        String normalizedPaymentMethod = paymentMethod.trim().toUpperCase(Locale.ROOT);
+        if (PAYMENT_METHOD_WALLET.equals(normalizedPaymentMethod)
+                || PAYMENT_METHOD_CASH.equals(normalizedPaymentMethod)
+                || PAYMENT_METHOD_DIRECT_GATEWAY.equals(normalizedPaymentMethod)) {
+            return normalizedPaymentMethod;
+        }
+
+        throw new RuntimeException("Unsupported payment method: " + paymentMethod);
     }
 
     private String getAppOwnerUserId() {
