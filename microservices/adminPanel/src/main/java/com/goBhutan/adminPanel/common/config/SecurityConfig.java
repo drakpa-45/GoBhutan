@@ -37,6 +37,7 @@ public class SecurityConfig {
 						// Public endpoints
 						.requestMatchers("/auth/**").permitAll()
 						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/bus-masters/routes/**").permitAll()
 						// Everything else requires a valid Bearer JWT
 						.anyRequest().authenticated())
 				.oauth2ResourceServer(oauth2 -> oauth2

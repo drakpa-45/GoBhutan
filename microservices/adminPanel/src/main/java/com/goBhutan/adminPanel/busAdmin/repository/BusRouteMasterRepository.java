@@ -10,9 +10,9 @@ import java.util.Optional;
 @Repository
 public interface BusRouteMasterRepository extends JpaRepository<BusRouteMaster, Long> {
 
-    List<BusRouteMaster> findByAdminUserIdOrderByRouteNameAsc(String adminUserId);
+    List<BusRouteMaster> findAllByOrderByRouteNameAsc();
 
-    List<BusRouteMaster> findByAdminUserIdAndActiveTrueOrderByRouteNameAsc(String adminUserId);
+    List<BusRouteMaster> findByActiveTrueOrderByRouteNameAsc();
 
     Optional<BusRouteMaster> findByIdAndAdminUserId(Long id, String adminUserId);
 

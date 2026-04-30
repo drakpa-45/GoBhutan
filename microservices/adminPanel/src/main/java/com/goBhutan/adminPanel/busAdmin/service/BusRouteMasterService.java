@@ -39,15 +39,15 @@ public class BusRouteMasterService {
         return toResponse(routeMasterRepository.save(routeMaster));
     }
 
-    public BusRouteMasterResponse getById(Long id, String adminUserId) {
-        return toResponse(routeMasterRepository.findByIdAndAdminUserId(id, adminUserId)
+    public BusRouteMasterResponse getById(Long id) {
+        return toResponse(routeMasterRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Route master not found")));
     }
 
-    public List<BusRouteMasterResponse> getAll(String adminUserId, Boolean activeOnly) {
-        List<BusRouteMaster> routeMasters = Boolean.TRUE.equals(activeOnly)
-                ? routeMasterRepository.findByAdminUserIdAndActiveTrueOrderByRouteNameAsc(adminUserId)
-                : routeMasterRepository.findByAdminUserIdOrderByRouteNameAsc(adminUserId);
+    public List<BusRouteMasterResponse> getAll(Boolean activeOnly) {
+        List<BusRouteMaster> routeMasters = Boolean.FALSE.equals(activeOnly)
+                ? routeMasterRepository.findAllByOrderByRouteNameAsc()
+                : routeMasterRepository.findByActiveTrueOrderByRouteNameAsc();
 
         return routeMasters.stream()
                 .map(this::toResponse)

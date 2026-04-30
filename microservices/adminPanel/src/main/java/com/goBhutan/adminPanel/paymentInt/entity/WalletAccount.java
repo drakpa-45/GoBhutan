@@ -22,6 +22,9 @@ public class WalletAccount {
     @Column(name = "user_id", nullable = false, length = 120)
     private String userId;
 
+    @Column(name = "wallet_id", unique = true, length = 24)
+    private String walletId;
+
     @Column(nullable = false, length = 10)
     private String currency = "BTN";
 
@@ -38,4 +41,3 @@ public class WalletAccount {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 }
-

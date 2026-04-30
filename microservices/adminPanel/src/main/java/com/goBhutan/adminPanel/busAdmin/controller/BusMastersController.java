@@ -60,7 +60,7 @@ public class BusMastersController {
     @GetMapping("/routes/{id}")
     public ResponseEntity<ApiResponse<BusRouteMasterResponse>> getRouteMaster(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(
-                routeMasterService.getById(id, currentUserId())
+                routeMasterService.getById(id)
         ));
     }
 
@@ -69,7 +69,7 @@ public class BusMastersController {
             @RequestParam(name = "activeOnly", required = false) Boolean activeOnly
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                routeMasterService.getAll(currentUserId(), activeOnly)
+                routeMasterService.getAll(activeOnly)
         ));
     }
 

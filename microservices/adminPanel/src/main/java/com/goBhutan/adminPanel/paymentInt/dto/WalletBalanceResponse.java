@@ -8,9 +8,9 @@ import java.math.BigDecimal;
 @Data
 @Builder
 public class WalletBalanceResponse {
+    private String walletId;
     private String userId;
     private String currency;
     private BigDecimal balance;
     private String status;
 }
-
