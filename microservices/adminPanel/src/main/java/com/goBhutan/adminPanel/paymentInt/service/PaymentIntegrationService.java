@@ -40,6 +40,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -53,6 +54,7 @@ public class PaymentIntegrationService {
     private static final int MAX_STATUS_CHECK_COUNT = 3;
     private static final long STATUS_POLL_DELAY_MINUTES = 6;
     private static final long STATUS_POLL_INTERVAL_SECONDS = 60;
+    private static final String WALLET_ID_PREFIX = "GBW-";
     private static final Pattern REMITTER_EMAIL_PATTERN = Pattern.compile(
             "^[A-Z0-9._%+-]+@([A-Z0-9-]+\\.)+[A-Z]{2,}$",
             Pattern.CASE_INSENSITIVE);
@@ -402,10 +404,12 @@ public class PaymentIntegrationService {
     }
 
     public WalletBalanceResponse getWalletBalance(String userId) {
-        WalletAccount wallet = walletAccountRepository.findByUserId(userId)
+        WalletAccount wallet = walletAccountRepository.findByUserIdForUpdate(userId)
                 .orElseGet(() -> createNewWallet(userId, "BTN"));
+        ensureWalletId(wallet);
 
         return WalletBalanceResponse.builder()
+                .walletId(wallet.getWalletId())
                 .userId(wallet.getUserId())
                 .currency(wallet.getCurrency())
                 .balance(wallet.getBalance())
@@ -429,6 +433,7 @@ public class PaymentIntegrationService {
         String currency = defaultCurrency(req.getCurrency());
         WalletAccount wallet = walletAccountRepository.findByUserIdForUpdate(userId)
                 .orElseGet(() -> createNewWallet(userId, currency));
+        ensureWalletId(wallet);
 
         if (!"ACTIVE".equalsIgnoreCase(wallet.getStatus())) {
             throw new RuntimeException("Wallet is not active");
@@ -517,6 +522,7 @@ public class PaymentIntegrationService {
 
         WalletAccount wallet = walletAccountRepository.findByUserIdForUpdate(userId)
                 .orElseGet(() -> createNewWallet(userId, original.getCurrency()));
+        ensureWalletId(wallet);
 
         BigDecimal existingRefundAmount = transactionRepository.sumAmountByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
                 userId,
@@ -671,6 +677,7 @@ public class PaymentIntegrationService {
 
         WalletAccount wallet = walletAccountRepository.findByUserIdForUpdate(recipientUserId)
                 .orElseGet(() -> createNewWallet(recipientUserId, original.getCurrency()));
+        ensureWalletId(wallet);
 
         BigDecimal settlementAmount = amount.setScale(2, RoundingMode.HALF_UP);
         BigDecimal before = wallet.getBalance();
@@ -759,6 +766,7 @@ public class PaymentIntegrationService {
 
         WalletAccount wallet = walletAccountRepository.findByUserIdForUpdate(recipientUserId)
                 .orElseGet(() -> createNewWallet(recipientUserId, settlementTxn.getCurrency()));
+        ensureWalletId(wallet);
 
         BigDecimal before = wallet.getBalance();
         if (before.compareTo(reversalAmount) < 0) {
@@ -1037,6 +1045,7 @@ public class PaymentIntegrationService {
     private void creditWalletForTopup(PaymentTransaction transaction) {
         WalletAccount wallet = walletAccountRepository.findByUserIdForUpdate(transaction.getUserId())
                 .orElseGet(() -> createNewWallet(transaction.getUserId(), transaction.getCurrency()));
+        ensureWalletId(wallet);
 
         BigDecimal before = wallet.getBalance();
         BigDecimal after = before.add(transaction.getAmount());
@@ -1060,10 +1069,31 @@ public class PaymentIntegrationService {
     private WalletAccount createNewWallet(String userId, String currency) {
         WalletAccount wallet = new WalletAccount();
         wallet.setUserId(userId);
+        wallet.setWalletId(generateWalletId());
         wallet.setCurrency(defaultCurrency(currency));
         wallet.setBalance(BigDecimal.ZERO);
         wallet.setStatus("ACTIVE");
         return walletAccountRepository.save(wallet);
+    }
+
+    private void ensureWalletId(WalletAccount wallet) {
+        if (wallet != null && isBlank(wallet.getWalletId())) {
+            wallet.setWalletId(generateWalletId());
+            walletAccountRepository.save(wallet);
+        }
+    }
+
+    private String generateWalletId() {
+        for (int attempt = 0; attempt < 10; attempt++) {
+            String candidate = WALLET_ID_PREFIX
+                    + UUID.randomUUID().toString().replace("-", "")
+                    .substring(0, 10)
+                    .toUpperCase(Locale.ROOT);
+            if (!walletAccountRepository.existsByWalletId(candidate)) {
+                return candidate;
+            }
+        }
+        throw new RuntimeException("Unable to generate unique wallet id");
     }
 
     private void transitionFromGatewayCode(PaymentTransaction transaction, String responseCode) {
