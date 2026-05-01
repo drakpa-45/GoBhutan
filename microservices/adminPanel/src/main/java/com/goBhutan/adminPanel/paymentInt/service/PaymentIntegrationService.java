@@ -54,7 +54,7 @@ public class PaymentIntegrationService {
     private static final int MAX_STATUS_CHECK_COUNT = 3;
     private static final long STATUS_POLL_DELAY_MINUTES = 6;
     private static final long STATUS_POLL_INTERVAL_SECONDS = 60;
-    private static final String WALLET_ID_PREFIX = "GBW-";
+    private static final String WALLET_ID_PREFIX = "YAYA-";
     private static final Pattern REMITTER_EMAIL_PATTERN = Pattern.compile(
             "^[A-Z0-9._%+-]+@([A-Z0-9-]+\\.)+[A-Z]{2,}$",
             Pattern.CASE_INSENSITIVE);
@@ -106,8 +106,7 @@ public class PaymentIntegrationService {
     public GatewayPaymentInitiateResponse initiateGatewayServicePayment(
             ServicePaymentRequest req,
             String userId,
-            String remitterEmail
-    ) {
+            String remitterEmail) {
         return initiateGatewayPayment(
                 req,
                 userId,
@@ -120,8 +119,7 @@ public class PaymentIntegrationService {
             String paymentRef,
             String remitterBankId,
             String remitterAccNo,
-            String userId
-    ) {
+            String userId) {
         return verifyGatewayPaymentAccount(
                 paymentRef,
                 remitterBankId,
@@ -144,8 +142,7 @@ public class PaymentIntegrationService {
             String userId,
             String remitterEmail,
             PaymentTransactionType transactionType,
-            String defaultDescription
-    ) {
+            String defaultDescription) {
         validateAmount(req.getAmount());
         String normalizedRemitterEmail = validateRemitterEmail(remitterEmail);
 
@@ -212,8 +209,7 @@ public class PaymentIntegrationService {
             String remitterBankId,
             String remitterAccNo,
             String userId,
-            PaymentTransactionType transactionType
-    ) {
+            PaymentTransactionType transactionType) {
         if (isBlank(paymentRef)) {
             throw new RuntimeException("paymentRef is required");
         }
@@ -268,8 +264,7 @@ public class PaymentIntegrationService {
             String otp,
             String userId,
             PaymentTransactionType transactionType,
-            boolean creditTopupWallet
-    ) {
+            boolean creditTopupWallet) {
         if (isBlank(paymentRef)) {
             throw new RuntimeException("paymentRef is required");
         }
@@ -320,8 +315,7 @@ public class PaymentIntegrationService {
                         referenceType,
                         referenceId,
                         PaymentTransactionType.SERVICE_PAYMENT,
-                        List.of(PaymentStatus.PENDING, PaymentStatus.SUCCESS)
-                )
+                        List.of(PaymentStatus.PENDING, PaymentStatus.SUCCESS))
                 .ifPresent(existing -> {
                     if (existing.getStatus() == PaymentStatus.PENDING && expireIfNeeded(existing)) {
                         return;
@@ -332,8 +326,7 @@ public class PaymentIntegrationService {
 
     private GatewayPaymentInitiateResponse toGatewayInitiateResponse(
             PaymentTransaction transaction,
-            BfsGatewayResponse bfsResponse
-    ) {
+            BfsGatewayResponse bfsResponse) {
         return GatewayPaymentInitiateResponse.builder()
                 .paymentRef(transaction.getPaymentRef())
                 .providerTransactionId(transaction.getProviderTransactionId())
@@ -444,8 +437,7 @@ public class PaymentIntegrationService {
                 referenceType,
                 referenceId,
                 PaymentTransactionType.SERVICE_PAYMENT,
-                PaymentStatus.SUCCESS
-        ).isPresent()) {
+                PaymentStatus.SUCCESS).isPresent()) {
             throw new RuntimeException("Payment already completed for this reference");
         }
 
@@ -508,8 +500,7 @@ public class PaymentIntegrationService {
             String referenceType,
             String referenceId,
             String description,
-            String userId
-    ) {
+            String userId) {
         validateAmount(amount);
 
         PaymentTransaction original = transactionRepository.findByPaymentRefAndUserId(originalPaymentRef, userId)
@@ -524,12 +515,12 @@ public class PaymentIntegrationService {
                 .orElseGet(() -> createNewWallet(userId, original.getCurrency()));
         ensureWalletId(wallet);
 
-        BigDecimal existingRefundAmount = transactionRepository.sumAmountByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
-                userId,
-                originalPaymentRef,
-                PaymentTransactionType.SERVICE_REFUND,
-                PaymentStatus.SUCCESS
-        );
+        BigDecimal existingRefundAmount = transactionRepository
+                .sumAmountByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
+                        userId,
+                        originalPaymentRef,
+                        PaymentTransactionType.SERVICE_REFUND,
+                        PaymentStatus.SUCCESS);
 
         BigDecimal refundAmount = amount.setScale(2, RoundingMode.HALF_UP);
         if (existingRefundAmount.add(refundAmount).compareTo(original.getAmount()) > 0) {
@@ -595,7 +586,8 @@ public class PaymentIntegrationService {
         return original.getAmount();
     }
 
-    public String getPendingGatewayServicePaymentReferenceId(String paymentRef, String userId, String expectedReferenceType) {
+    public String getPendingGatewayServicePaymentReferenceId(String paymentRef, String userId,
+            String expectedReferenceType) {
         PaymentTransaction transaction = getOwnedGatewayServicePayment(paymentRef, userId);
         ensureServicePaymentReferenceType(transaction, expectedReferenceType);
         ensureInteractiveStepAllowed(transaction);
@@ -603,14 +595,16 @@ public class PaymentIntegrationService {
         return transaction.getReferenceId();
     }
 
-    public String getSuccessfulGatewayServicePaymentReferenceId(String paymentRef, String userId, String expectedReferenceType) {
+    public String getSuccessfulGatewayServicePaymentReferenceId(String paymentRef, String userId,
+            String expectedReferenceType) {
         PaymentTransaction transaction = getOwnedGatewayServicePayment(paymentRef, userId);
         ensureServicePaymentReferenceType(transaction, expectedReferenceType);
         ensureSuccessfulPayment(transaction);
         return transaction.getReferenceId();
     }
 
-    public BigDecimal getSuccessfulGatewayServicePaymentAmount(String paymentRef, String userId, String expectedReferenceType) {
+    public BigDecimal getSuccessfulGatewayServicePaymentAmount(String paymentRef, String userId,
+            String expectedReferenceType) {
         PaymentTransaction transaction = getOwnedGatewayServicePayment(paymentRef, userId);
         ensureServicePaymentReferenceType(transaction, expectedReferenceType);
         ensureSuccessfulPayment(transaction);
@@ -638,8 +632,7 @@ public class PaymentIntegrationService {
                 originalPaymentRef,
                 referenceType.trim(),
                 PaymentTransactionType.SERVICE_SETTLEMENT,
-                PaymentStatus.SUCCESS
-        );
+                PaymentStatus.SUCCESS);
     }
 
     public WalletPaymentResult creditServiceSettlement(
@@ -649,8 +642,7 @@ public class PaymentIntegrationService {
             String referenceType,
             String referenceId,
             String description,
-            String recipientUserId
-    ) {
+            String recipientUserId) {
         validateAmount(amount);
 
         if (isBlank(recipientUserId)) {
@@ -670,8 +662,7 @@ public class PaymentIntegrationService {
                 originalPaymentRef,
                 referenceType,
                 PaymentTransactionType.SERVICE_SETTLEMENT,
-                PaymentStatus.SUCCESS
-        ).isPresent()) {
+                PaymentStatus.SUCCESS).isPresent()) {
             throw new RuntimeException("Settlement already completed for this payment");
         }
 
@@ -734,8 +725,7 @@ public class PaymentIntegrationService {
             String referenceType,
             String referenceId,
             String description,
-            String recipientUserId
-    ) {
+            String recipientUserId) {
         validateAmount(amount);
 
         if (isBlank(recipientUserId)) {
@@ -748,17 +738,16 @@ public class PaymentIntegrationService {
                         originalPaymentRef,
                         referenceType,
                         PaymentTransactionType.SERVICE_SETTLEMENT,
-                        PaymentStatus.SUCCESS
-                )
+                        PaymentStatus.SUCCESS)
                 .orElseThrow(() -> new RuntimeException("Settlement transaction not found"));
 
         BigDecimal reversalAmount = amount.setScale(2, RoundingMode.HALF_UP);
-        BigDecimal existingReversalAmount = transactionRepository.sumAmountByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
-                recipientUserId,
-                settlementTxn.getPaymentRef(),
-                PaymentTransactionType.SERVICE_SETTLEMENT_REVERSAL,
-                PaymentStatus.SUCCESS
-        );
+        BigDecimal existingReversalAmount = transactionRepository
+                .sumAmountByUserIdAndParentPaymentRefAndTransactionTypeAndStatus(
+                        recipientUserId,
+                        settlementTxn.getPaymentRef(),
+                        PaymentTransactionType.SERVICE_SETTLEMENT_REVERSAL,
+                        PaymentStatus.SUCCESS);
 
         if (existingReversalAmount.add(reversalAmount).compareTo(settlementTxn.getAmount()) > 0) {
             throw new RuntimeException("Settlement reversal amount exceeds credited settlement");
@@ -846,8 +835,7 @@ public class PaymentIntegrationService {
             String paymentRef,
             String userId,
             PaymentTransactionType transactionType,
-            boolean creditTopupWallet
-    ) {
+            boolean creditTopupWallet) {
         PaymentTransaction transaction = getOwnedGatewayPayment(paymentRef, userId, transactionType);
 
         if (transaction.getStatus() == PaymentStatus.PENDING && transaction.getDebitRequestedAt() != null) {
@@ -900,8 +888,7 @@ public class PaymentIntegrationService {
     private void applyDebitResult(
             PaymentTransaction transaction,
             BfsGatewayResponse bfsResponse,
-            boolean creditTopupWallet
-    ) {
+            boolean creditTopupWallet) {
         transaction.setProviderTransactionId(
                 defaultValue(bfsResponse.getProviderTransactionId(), transaction.getProviderTransactionId()));
         transaction.setGatewayTransactionTime(
@@ -943,8 +930,7 @@ public class PaymentIntegrationService {
     private PaymentTransaction getOwnedGatewayPayment(
             String paymentRef,
             String userId,
-            PaymentTransactionType transactionType
-    ) {
+            PaymentTransactionType transactionType) {
         PaymentTransaction transaction = transactionRepository.findByPaymentRef(paymentRef)
                 .orElseThrow(() -> new RuntimeException("Payment transaction not found"));
 
@@ -1087,8 +1073,8 @@ public class PaymentIntegrationService {
         for (int attempt = 0; attempt < 10; attempt++) {
             String candidate = WALLET_ID_PREFIX
                     + UUID.randomUUID().toString().replace("-", "")
-                    .substring(0, 10)
-                    .toUpperCase(Locale.ROOT);
+                            .substring(0, 10)
+                            .toUpperCase(Locale.ROOT);
             if (!walletAccountRepository.existsByWalletId(candidate)) {
                 return candidate;
             }

@@ -37,7 +37,13 @@ public class SecurityConfig {
 						// Public endpoints
 						.requestMatchers("/auth/**").permitAll()
 						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-						.requestMatchers(HttpMethod.GET, "/api/bus-masters/routes/**").permitAll()
+						.requestMatchers(HttpMethod.GET,
+								"/api/bus-masters/routes",
+								"/api/bus-masters/routes/**",
+								"/api/config",
+								"/api/config/**")
+						.permitAll()
+						.requestMatchers("/api/bus-app/**").permitAll()
 						// Everything else requires a valid Bearer JWT
 						.anyRequest().authenticated())
 				.oauth2ResourceServer(oauth2 -> oauth2
@@ -46,23 +52,27 @@ public class SecurityConfig {
 
 		return http.build();
 	}
-	//  Define global CORS policy
-	/*@Bean
-	public CorsConfigurationSource corsConfigurationSource() {
-		CorsConfiguration config = new CorsConfiguration();
-		config.setAllowedOrigins(List.of(
-				"http://localhost:5173",
-				"http://68.178.160.243",
-				"https://gobhutan.site"));
-		config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-		config.setAllowedHeaders(List.of("*"));
-		config.setAllowCredentials(true);
-		config.setMaxAge(3600L); // 1 hour cache for preflight
 
-		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-		source.registerCorsConfiguration("/**", config);
-		return source;
-	}*/
+	// Define global CORS policy
+	/*
+	 * @Bean
+	 * public CorsConfigurationSource corsConfigurationSource() {
+	 * CorsConfiguration config = new CorsConfiguration();
+	 * config.setAllowedOrigins(List.of(
+	 * "http://localhost:5173",
+	 * "http://68.178.160.243",
+	 * "https://gobhutan.site"));
+	 * config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+	 * config.setAllowedHeaders(List.of("*"));
+	 * config.setAllowCredentials(true);
+	 * config.setMaxAge(3600L); // 1 hour cache for preflight
+	 * 
+	 * UrlBasedCorsConfigurationSource source = new
+	 * UrlBasedCorsConfigurationSource();
+	 * source.registerCorsConfiguration("/**", config);
+	 * return source;
+	 * }
+	 */
 	@Bean
 	public CorsConfigurationSource corsConfigurationSource() {
 		CorsConfiguration config = new CorsConfiguration();
@@ -71,8 +81,7 @@ public class SecurityConfig {
 				"http://localhost:5173",
 				"https://gobhutan.site",
 				"http://68.178.160.243",
-				"https://go-bhutan-admin.vercel.app"
-		));
+				"https://go-bhutan-admin.vercel.app"));
 
 		config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
 		config.setAllowedHeaders(List.of("*"));

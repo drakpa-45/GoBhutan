@@ -10,6 +10,7 @@ import com.goBhutan.adminPanel.busAdmin.enums.BookingStatus;
 import com.goBhutan.adminPanel.busAdmin.repository.BusScheduleRepository;
 import com.goBhutan.adminPanel.busAdmin.repository.SeatBookingRepository;
 import com.goBhutan.adminPanel.common.entity.AppUser;
+import com.goBhutan.adminPanel.common.service.AppConfigService;
 import com.goBhutan.adminPanel.common.service.AppUserService;
 import com.goBhutan.adminPanel.paymentInt.dto.ServicePaymentRequest;
 import com.goBhutan.adminPanel.paymentInt.dto.WalletPaymentResult;
@@ -36,7 +37,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class BusBookingService {
 
-    private static final String APP_OWNER_USERNAME = "YAYAOWNER";
+    private static final String APP_OWNER_USERNAME_CONFIG_FOR = "APP_OWNER_USERNAME";
     private static final String PAYMENT_METHOD_WALLET = "WALLET";
     private static final String PAYMENT_METHOD_CASH = "CASH";
     private static final String PAYMENT_METHOD_DIRECT_GATEWAY = "DIRECT_GATEWAY";
@@ -49,6 +50,7 @@ public class BusBookingService {
     private final SeatBroadcastService broadcastService;
     private final PaymentIntegrationService paymentService;
     private final AppUserService appUserService;
+    private final AppConfigService appConfigService;
 
     @Value("${app.clients.bus.seat-lock-minutes:5}")
     private long seatLockMinutes;
@@ -1062,10 +1064,11 @@ public class BusBookingService {
     }
 
     private String getAppOwnerUserId() {
-        AppUser appOwner = appUserService.findByUsername(APP_OWNER_USERNAME)
-                .orElseThrow(() -> new RuntimeException("App owner user not found: " + APP_OWNER_USERNAME));
+        String appOwnerUsername = appConfigService.getFirstActiveConfigValue(APP_OWNER_USERNAME_CONFIG_FOR);
+        AppUser appOwner = appUserService.findByUsername(appOwnerUsername)
+                .orElseThrow(() -> new RuntimeException("App owner user not found: " + appOwnerUsername));
         if (appOwner.getKeycloakId() == null || appOwner.getKeycloakId().isBlank()) {
-            throw new RuntimeException("App owner Keycloak ID is not configured: " + APP_OWNER_USERNAME);
+            throw new RuntimeException("App owner Keycloak ID is not configured: " + appOwnerUsername);
         }
         return appOwner.getKeycloakId();
     }
