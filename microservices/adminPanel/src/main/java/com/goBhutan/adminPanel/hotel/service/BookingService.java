@@ -27,8 +27,8 @@ import org.springframework.stereotype.Service;
 
 import com.goBhutan.adminPanel.hotel.entity.Booking;
 import com.goBhutan.adminPanel.hotel.repository.BookingRepository;
+import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.transaction.Transactional;
 
 @Service
 @Transactional
@@ -52,7 +52,7 @@ public class BookingService {
     public Booking getBooking(Long id) {
         return bookingRepo.findById(id).orElseThrow(() -> new RuntimeException("Booking not found"));
     }
-
+    @Transactional
     public BookingSummaryDTO createBooking(BookingRequestDTO dto) {
         BookingSummaryDTO summaryDTO =  new BookingSummaryDTO();
         // 1. Fetch hotel
@@ -84,6 +84,7 @@ public class BookingService {
         booking.setTotalAmount(dto.getTotalAmount());
         booking.setStatus(Booking.BookingStatus.PENDING);
         booking.setCreatedAt(LocalDateTime.now());
+        booking.setExpiresAt(LocalDateTime.now().plusMinutes(10));
 
         // 5. Generate booking reference
         String hotelName = hotel.getName();
@@ -135,6 +136,12 @@ public class BookingService {
         String userId = jwt.getSubject();
 
         Booking booking = bookingRepo.getBookingStatus(id, bookingReference);
+
+        if (booking.isExpired()) {
+            booking.setStatus(Booking.BookingStatus.EXPIRED);
+            bookingRepo.save(booking);
+            throw new RuntimeException("Booking has expired. Please create a new booking.");
+        }
 
         if (!"PENDING".equalsIgnoreCase(String.valueOf(booking.getStatus()))) {
             throw new RuntimeException("Cannot confirm booking " + bookingReference
