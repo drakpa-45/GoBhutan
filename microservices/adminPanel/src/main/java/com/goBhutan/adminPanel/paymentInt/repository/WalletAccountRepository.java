@@ -13,8 +13,9 @@ import java.util.Optional;
 public interface WalletAccountRepository extends JpaRepository<WalletAccount, Long> {
     Optional<WalletAccount> findByUserId(String userId);
 
+    boolean existsByWalletId(String walletId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT w FROM WalletAccount w WHERE w.userId = :userId")
     Optional<WalletAccount> findByUserIdForUpdate(String userId);
 }
-

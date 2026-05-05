@@ -33,7 +33,7 @@ public class BfsSecureWalletGatewayClient implements WalletGatewayClient {
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Override
-    public BfsGatewayResponse initiateTopup(PaymentWalletConfig config, PaymentTransaction txn) {
+    public BfsGatewayResponse initiatePayment(PaymentWalletConfig config, PaymentTransaction txn) {
 
         Map<String, String> fields = new HashMap<>();
         fields.put("bfs_msgType", "AR");
@@ -45,7 +45,7 @@ public class BfsSecureWalletGatewayClient implements WalletGatewayClient {
         fields.put("bfs_txnAmount", formatAmount(txn.getAmount()));
         fields.put("bfs_paymentDesc",
                 txn.getDescription() == null
-                        ? "Wallet topup"
+                        ? "Gateway payment"
                         : txn.getDescription().replace("+", " "));
 
         fields.put("bfs_version", defaultString(config.getVersion(), "1.0"));
@@ -93,7 +93,7 @@ public class BfsSecureWalletGatewayClient implements WalletGatewayClient {
         fields.put("bfs_benfBankCode", defaultString(config.getBeneficiaryBankCode(), "01"));
         fields.put("bfs_txnCurrency", txn.getCurrency());
         fields.put("bfs_txnAmount", formatAmount(txn.getAmount()));
-        fields.put("bfs_paymentDesc", defaultString(txn.getDescription(), "Wallet topup"));
+        fields.put("bfs_paymentDesc", defaultString(txn.getDescription(), "Gateway payment"));
         fields.put("bfs_version", defaultString(config.getVersion(), "1.0"));
 
         fields.put("bfs_remitterEmail",

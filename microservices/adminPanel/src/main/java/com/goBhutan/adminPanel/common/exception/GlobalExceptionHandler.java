@@ -3,6 +3,7 @@ package com.goBhutan.adminPanel.common.exception;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.goBhutan.adminPanel.common.dto.ApiResponse;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -22,6 +23,16 @@ public class GlobalExceptionHandler {
             }
             message = message.substring(0, message.length() - 2); // remove last comma
         }
+
+        return ResponseEntity.badRequest().body(ApiResponse.error(message));
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<?>> handleValidation(MethodArgumentNotValidException ex) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(error -> error.getDefaultMessage())
+                .findFirst()
+                .orElse("Validation failed");
 
         return ResponseEntity.badRequest().body(ApiResponse.error(message));
     }

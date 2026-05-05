@@ -2,6 +2,7 @@ package com.goBhutan.adminPanel.busAdmin.cron;
 
 import com.goBhutan.adminPanel.busAdmin.entity.SeatBooking;
 import com.goBhutan.adminPanel.busAdmin.repository.SeatBookingRepository;
+import com.goBhutan.adminPanel.busAdmin.service.SeatBroadcastService;
 import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -12,12 +13,15 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
 public class BookingCleanupTask {
     private static final Logger log = LoggerFactory.getLogger(BookingCleanupTask.class);
     private final SeatBookingRepository bookingRepo;
+    private final SeatBroadcastService broadcastService;
     @Value("${app.clients.bus.release-expired-lock:false}")
     private boolean releaseExpiredLock;
 
@@ -60,11 +64,16 @@ public class BookingCleanupTask {
                     booking.getLockExpiry());
         }
 
-        bookingRepo.releaseExpiredLocks(startedAt);
+        Set<Long> scheduleIds = expiredLocks.stream()
+                .map(booking -> booking.getSchedule().getId())
+                .collect(Collectors.toSet());
+        int released = bookingRepo.releaseExpiredLocks(startedAt);
+        scheduleIds.forEach(broadcastService::broadcastSeatUpdate);
         log.info(
-                "expired-lock-cleanup end at={} released={} durationMs={}",
+                "expired-lock-cleanup end at={} detected={} released={} durationMs={}",
                 LocalDateTime.now(),
                 expiredLocks.size(),
+                released,
                 System.currentTimeMillis() - startMillis);
     }
 }

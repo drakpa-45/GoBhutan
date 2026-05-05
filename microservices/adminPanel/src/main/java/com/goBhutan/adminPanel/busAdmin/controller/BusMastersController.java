@@ -9,20 +9,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/bus-masters")
+@CrossOrigin(origins = "*", maxAge = 3600)
 @RequiredArgsConstructor
 public class BusMastersController {
 
@@ -60,7 +53,7 @@ public class BusMastersController {
     @GetMapping("/routes/{id}")
     public ResponseEntity<ApiResponse<BusRouteMasterResponse>> getRouteMaster(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(
-                routeMasterService.getById(id, currentUserId())
+                routeMasterService.getById(id)
         ));
     }
 
@@ -69,7 +62,7 @@ public class BusMastersController {
             @RequestParam(name = "activeOnly", required = false) Boolean activeOnly
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                routeMasterService.getAll(currentUserId(), activeOnly)
+                routeMasterService.getAll(activeOnly)
         ));
     }
 

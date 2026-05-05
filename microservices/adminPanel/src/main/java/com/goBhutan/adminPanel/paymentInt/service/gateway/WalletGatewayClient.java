@@ -5,7 +5,7 @@ import com.goBhutan.adminPanel.paymentInt.entity.PaymentTransaction;
 import com.goBhutan.adminPanel.paymentInt.entity.PaymentWalletConfig;
 
 public interface WalletGatewayClient {
-    BfsGatewayResponse initiateTopup(PaymentWalletConfig config, PaymentTransaction transaction);
+    BfsGatewayResponse initiatePayment(PaymentWalletConfig config, PaymentTransaction transaction);
     BfsGatewayResponse verifyAccount(PaymentWalletConfig config, PaymentTransaction transaction, String remitterBankId, String remitterAccNo);
     BfsGatewayResponse submitOtp(PaymentWalletConfig config, PaymentTransaction transaction, String otp);
     BfsGatewayResponse checkStatus(PaymentWalletConfig config, PaymentTransaction transaction);
