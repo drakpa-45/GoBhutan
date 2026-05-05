@@ -56,4 +56,13 @@ public interface SeatRepository extends JpaRepository<Seat, Long> {
     @Query("SELECT s FROM Seat s WHERE s.id = :seatId")
     Optional<Seat> findByIdForUpdate(@Param("seatId") Long seatId);
 
+    // In your existing SeatRepository
+    @Query("""
+    SELECT s FROM Seat s
+    JOIN FETCH s.hall h
+    JOIN FETCH s.seatClass sc
+    WHERE s.id = :id
+    """)
+    Optional<Seat> findByIdWithHallAndClass(@Param("id") Long id);
+
 }
