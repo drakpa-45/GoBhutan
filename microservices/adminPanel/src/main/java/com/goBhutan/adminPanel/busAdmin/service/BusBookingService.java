@@ -282,7 +282,7 @@ public class BusBookingService {
         }
 
         if (PAYMENT_METHOD_DIRECT_GATEWAY.equals(normalizedPaymentMethod)) {
-            throw new RuntimeException("Direct gateway payment must use direct-gateway-payment endpoints");
+            throw new RuntimeException("Direct gateway payment must use direct-payment endpoints");
         }
 
         throw new RuntimeException("Unsupported payment method: " + paymentMethod);

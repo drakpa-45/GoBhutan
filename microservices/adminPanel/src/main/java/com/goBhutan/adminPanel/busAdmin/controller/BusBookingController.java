@@ -2,23 +2,12 @@ package com.goBhutan.adminPanel.busAdmin.controller;
 
 import com.goBhutan.adminPanel.busAdmin.dto.BusTicketResponse;
 import com.goBhutan.adminPanel.busAdmin.dto.ConfirmBookingRequest;
-import com.goBhutan.adminPanel.busAdmin.dto.DirectGatewayPaymentAccountInquiryRequest;
-import com.goBhutan.adminPanel.busAdmin.dto.DirectGatewayPaymentDebitRequest;
-import com.goBhutan.adminPanel.busAdmin.dto.DirectGatewayPaymentInitiateRequest;
 import com.goBhutan.adminPanel.busAdmin.dto.LockSeatRequest;
 import com.goBhutan.adminPanel.busAdmin.entity.SeatBooking;
 import com.goBhutan.adminPanel.busAdmin.service.BusBookingService;
 import com.goBhutan.adminPanel.busAdmin.service.TicketService;
 import com.goBhutan.adminPanel.common.dto.ApiResponse;
-import com.goBhutan.adminPanel.paymentInt.dto.GatewayPaymentAccountInquiryResponse;
-import com.goBhutan.adminPanel.paymentInt.dto.GatewayPaymentDebitResponse;
-import com.goBhutan.adminPanel.paymentInt.dto.GatewayPaymentInitiateResponse;
-import com.goBhutan.adminPanel.paymentInt.dto.PaymentStatusResponse;
-import com.goBhutan.adminPanel.paymentInt.dto.ServicePaymentRequest;
-import com.goBhutan.adminPanel.paymentInt.enums.PaymentStatus;
-import com.goBhutan.adminPanel.paymentInt.service.PaymentIntegrationService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -34,12 +23,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class BusBookingController {
 
-    private static final String PAYMENT_METHOD_DIRECT_GATEWAY = "DIRECT_GATEWAY";
-    private static final String DIRECT_GATEWAY_PAYMENT_DESCRIPTION = "Direct Gateway Payment";
-
     private final BusBookingService bookingService;
     private final TicketService ticketService;
-    private final PaymentIntegrationService paymentService;
 
     @PostMapping("/lock")
     public ResponseEntity<?> lock(@RequestBody LockSeatRequest req) {
@@ -71,86 +56,6 @@ public class BusBookingController {
     @PostMapping("/pay")
     public ResponseEntity<?> pay(@RequestBody ConfirmBookingRequest req) {
         return confirmWithPaymentMethod(req);
-    }
-
-    @PostMapping("/direct-gateway-payment/initiate")
-    public ResponseEntity<?> initiateDirectGatewayPayment(@RequestBody DirectGatewayPaymentInitiateRequest req) {
-        String userId = currentUserId();
-
-        ServicePaymentRequest paymentRequest = bookingService.buildDirectGatewayPaymentRequest(
-                req.getBookingRef(),
-                userId,
-                req.getAmount(),
-                req.getCurrency(),
-                req.getDescription());
-        GatewayPaymentInitiateResponse payment = paymentService.initiateGatewayServicePayment(
-                paymentRequest,
-                userId,
-                req.getRemitterEmail());
-
-        if (payment.getStatus() == PaymentStatus.PENDING) {
-            bookingService.extendDirectGatewayPaymentLock(req.getBookingRef(), userId, payment.getExpiresAt());
-        }
-
-        return directGatewayPaymentResponse(payment.getStatus(), directGatewayPaymentInitiateResponse(
-                req.getBookingRef(),
-                payment));
-    }
-
-    @PostMapping("/direct-gateway-payment/account-inquiry")
-    public ResponseEntity<?> directGatewayPaymentAccountInquiry(@RequestBody DirectGatewayPaymentAccountInquiryRequest req) {
-        String userId = currentUserId();
-        String bookingRef = bookingService.ensureDirectGatewayPaymentCanContinue(req.getPaymentRef(), userId);
-
-        GatewayPaymentAccountInquiryResponse payment = paymentService.verifyGatewayServicePaymentAccount(
-                req.getPaymentRef(),
-                req.getRemitterBankId(),
-                req.getRemitterAccNo(),
-                userId);
-
-        return directGatewayPaymentResponse(payment.getStatus(), Map.of(
-                "bookingRef", bookingRef,
-                "paymentMethod", PAYMENT_METHOD_DIRECT_GATEWAY,
-                "payment", payment));
-    }
-
-    @PostMapping("/direct-gateway-payment/debit")
-    public ResponseEntity<?> directGatewayPaymentDebit(@RequestBody DirectGatewayPaymentDebitRequest req) {
-        String userId = currentUserId();
-        String bookingRef = bookingService.ensureDirectGatewayPaymentCanDebit(req.getPaymentRef(), userId);
-
-        GatewayPaymentDebitResponse payment = paymentService.submitGatewayServicePaymentOtp(
-                req.getPaymentRef(),
-                req.getOtp(),
-                userId);
-
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("bookingRef", bookingRef);
-        response.put("paymentMethod", PAYMENT_METHOD_DIRECT_GATEWAY);
-        response.put("payment", payment);
-        if (payment.getStatus() == PaymentStatus.SUCCESS) {
-            List<SeatBooking> bookings = bookingService.confirmDirectGatewayPaymentBooking(req.getPaymentRef(), userId);
-            response.put("booking", toBookingPaymentResponse(bookings.get(0).getBookingRef(), bookings));
-        }
-
-        return directGatewayPaymentResponse(payment.getStatus(), response);
-    }
-
-    @GetMapping("/direct-gateway-payment/status/{paymentRef}")
-    public ResponseEntity<?> directGatewayPaymentStatus(@PathVariable String paymentRef) {
-        String userId = currentUserId();
-
-        PaymentStatusResponse payment = paymentService.getGatewayServicePaymentStatus(paymentRef, userId);
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("paymentMethod", PAYMENT_METHOD_DIRECT_GATEWAY);
-        response.put("payment", payment);
-        if (payment.getStatus() == PaymentStatus.SUCCESS) {
-            List<SeatBooking> bookings = bookingService.confirmDirectGatewayPaymentBooking(paymentRef, userId);
-            response.put("bookingRef", bookings.get(0).getBookingRef());
-            response.put("booking", toBookingPaymentResponse(bookings.get(0).getBookingRef(), bookings));
-        }
-
-        return directGatewayPaymentResponse(payment.getStatus(), response);
     }
 
     @PostMapping("/admin/cash/lock")
@@ -274,33 +179,4 @@ public class BusBookingController {
         return response;
     }
 
-    private ResponseEntity<?> directGatewayPaymentResponse(PaymentStatus status, Map<String, Object> body) {
-        if (status == PaymentStatus.FAILED) {
-            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(body);
-        }
-        if (status == PaymentStatus.EXPIRED) {
-            return ResponseEntity.status(HttpStatus.GONE).body(body);
-        }
-        return ResponseEntity.ok(body);
-    }
-
-    private Map<String, Object> directGatewayPaymentInitiateResponse(
-            String bookingRef,
-            GatewayPaymentInitiateResponse payment
-    ) {
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("bookingRef", bookingRef);
-        response.put("paymentMethod", PAYMENT_METHOD_DIRECT_GATEWAY);
-        response.put("paymentRef", payment.getPaymentRef());
-        response.put("providerTransactionId", payment.getProviderTransactionId());
-        response.put("status", payment.getStatus());
-        response.put("amount", payment.getAmount());
-        response.put("currency", payment.getCurrency());
-        response.put("description", DIRECT_GATEWAY_PAYMENT_DESCRIPTION);
-        response.put("responseCode", payment.getResponseCode());
-        response.put("responseDesc", payment.getResponseDesc());
-        response.put("bankList", payment.getBankList());
-        response.put("expiresAt", payment.getExpiresAt());
-        return response;
-    }
 }

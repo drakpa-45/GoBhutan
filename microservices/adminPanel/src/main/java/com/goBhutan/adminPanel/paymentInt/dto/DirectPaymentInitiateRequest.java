@@ -1,11 +1,12 @@
-package com.goBhutan.adminPanel.busAdmin.dto;
+package com.goBhutan.adminPanel.paymentInt.dto;
 
 import lombok.Data;
 
 import java.math.BigDecimal;
 
 @Data
-public class DirectGatewayPaymentInitiateRequest {
+public class DirectPaymentInitiateRequest {
+    private String referenceId;
     private String bookingRef;
     private BigDecimal amount;
     private String currency;

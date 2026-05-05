@@ -1,9 +1,9 @@
-package com.goBhutan.adminPanel.busAdmin.dto;
+package com.goBhutan.adminPanel.paymentInt.dto;
 
 import lombok.Data;
 
 @Data
-public class DirectGatewayPaymentAccountInquiryRequest {
+public class DirectPaymentAccountInquiryRequest {
     private String paymentRef;
     private String remitterBankId;
     private String remitterAccNo;
