@@ -27,6 +27,7 @@ public class TheaterBookingService {
     private final SeatRepository seatRepository;
     private final SeatStatusRepository seatStatusRepository;
     private final BookingStatusRepository bookingStatusRepository;
+    private final SeatLockService seatLockService;          // ← injected
 
     @Transactional
     public List<TicketResponseDTO> bookTickets(BookingRequestDTO request) {
@@ -34,7 +35,6 @@ public class TheaterBookingService {
         Screening screening = screeningRepository.findById(request.getScreeningId())
                 .orElseThrow(() -> new IllegalArgumentException("Screening not found"));
 
-        // Get theater from screening
         Theater theater = screening.getHall().getTheater();
 
         SeatStatus availableStatus = seatStatusRepository
@@ -47,11 +47,21 @@ public class TheaterBookingService {
 
         TheaterBookingStatus createdStatus = bookingStatusRepository
                 .findByStatusNameIgnoreCase("CREATED")
-                .orElseThrow(() ->
-                        new IllegalStateException("BookingStatus CREATED not configured")
-                );
+                .orElseThrow(() -> new IllegalStateException("BookingStatus CREATED not configured"));
 
-        // ✅ Generate bookingRef and set theater
+        // ✅ STEP 1 — Validate user holds a valid (non-expired) seat lock
+        //            for every seat in this request, scoped to screening+hall+class
+        List<Long> requestedSeatIds = request.getTickets().stream()
+                .map(BookingRequestDTO.TicketRequest::getSeatId)
+                .collect(Collectors.toList());
+
+        seatLockService.assertUserHoldsLocks(
+                request.getScreeningId(),   // used as showtimeId in SeatLock
+                request.getUserId(),        // add String userId to BookingRequestDTO
+                requestedSeatIds
+        );
+
+        // Build booking
         TheaterBooking booking = new TheaterBooking();
         booking.setBookingRef(generateBookingRef());
         booking.setScreening(screening);
@@ -59,19 +69,26 @@ public class TheaterBookingService {
         booking.setBookingStatus(createdStatus);
 
         BigDecimal totalAmount = BigDecimal.ZERO;
-
         List<Ticket> ticketsToSave = new ArrayList<>();
         List<TicketResponseDTO> response = new ArrayList<>();
 
         for (BookingRequestDTO.TicketRequest t : request.getTickets()) {
 
-            // 🔒 Row-level lock
+            // 🔒 Row-level DB lock (unchanged — still needed as final safety net)
             Seat seat = seatRepository.findByIdForUpdate(t.getSeatId())
                     .orElseThrow(() -> new IllegalArgumentException("Seat not found"));
 
+            // ✅ STEP 2 — Double-check seat is still AVAILABLE at DB level
+            //            (covers edge case: seat was booked outside lock flow)
             if (!seat.getStatus().getId().equals(availableStatus.getId())) {
+                // Release all locks for this user since booking cannot proceed
+                seatLockService.releaseLocksAfterBooking(
+                        request.getScreeningId(),
+                        request.getUserId(),
+                        requestedSeatIds
+                );
                 throw new IllegalArgumentException(
-                        "Seat " + seat.getSeatIdentifier() + " is already booked"
+                        "Seat " + seat.getSeatIdentifier() + " is no longer available"
                 );
             }
 
@@ -81,7 +98,6 @@ public class TheaterBookingService {
             BigDecimal seatPrice = seat.getBasePrice();
             totalAmount = totalAmount.add(seatPrice);
 
-            // 🎟 Ticket Number
             String ticketNumber =
                     booking.getBookingRef() + "-"
                             + seat.getSeatClass().getName()
@@ -114,12 +130,20 @@ public class TheaterBookingService {
 
         booking.setTotalAmount(totalAmount);
         booking.setTickets(ticketsToSave);
-        bookingRepository.save(booking); // cascades tickets
+        bookingRepository.save(booking);
+
+        // ✅ STEP 3 — Release seat locks now that seats are BOOKED
+        //            so lock table stays clean (scheduler also covers this)
+        seatLockService.releaseLocksAfterBooking(
+                request.getScreeningId(),
+                request.getUserId(),
+                requestedSeatIds
+        );
 
         return response;
     }
 
-    // FETCH BOOKINGS BY THEATER ID
+    // FETCH BOOKINGS BY THEATER ID (unchanged)
     @Transactional(readOnly = true)
     public List<TicketResponseDTO> getBookingsByTheaterId(Long theaterId) {
         List<Ticket> tickets = ticketRepository.findByBooking_Theater_Id(theaterId);
@@ -156,23 +180,18 @@ public class TheaterBookingService {
 
         Seat seat = ticket.getSeat();
 
-        // Free seat
         SeatStatus available = seatStatusRepository.findByStatusNameIgnoreCase("AVAILABLE")
                 .orElseThrow(() -> new IllegalStateException("SeatStatus AVAILABLE missing"));
 
         TheaterBookingStatus cancelStatus = bookingStatusRepository
                 .findByStatusNameIgnoreCase("CANCEL")
-                .orElseThrow(() ->
-                        new IllegalStateException("BookingStatus CANCEL not configured")
-                );
+                .orElseThrow(() -> new IllegalStateException("BookingStatus CANCEL not configured"));
 
         seat.setStatus(available);
         seatRepository.save(seat);
 
-        // Remove ticket
         ticketRepository.delete(ticket);
 
-        // Update booking if no tickets left
         TheaterBooking booking = ticket.getBooking();
         if (booking.getTickets().isEmpty()) {
             booking.setBookingStatus(cancelStatus);
@@ -191,9 +210,7 @@ public class TheaterBookingService {
 
         TheaterBookingStatus cancelStatus = bookingStatusRepository
                 .findByStatusNameIgnoreCase("CANCEL")
-                .orElseThrow(() ->
-                        new IllegalStateException("BookingStatus CANCEL not configured")
-                );
+                .orElseThrow(() -> new IllegalStateException("BookingStatus CANCEL not configured"));
 
         for (Ticket ticket : booking.getTickets()) {
             Seat seat = ticket.getSeat();
