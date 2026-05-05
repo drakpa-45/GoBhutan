@@ -19,6 +19,7 @@ public class BookingRequestDTO {
 
     @NotEmpty
     private List<TicketRequest> tickets;
+    private String userId;
 
     @Data
     @NoArgsConstructor
@@ -37,5 +38,6 @@ public class BookingRequestDTO {
         private String phoneNumber;
 
         private String email;
+
     }
 }
