@@ -46,7 +46,7 @@ public class BookingController {
    // @PreAuthorize("hasRole('client_admin')")
     public ApiResponse<BookingSummaryDTO> createBooking(@RequestBody @Valid BookingRequestDTO bookingRequest) {
         BookingSummaryDTO created = bookingService.createBooking(bookingRequest);
-        return new ApiResponse<>(true, "Booking created successfully", created);
+        return new ApiResponse<>(true, "Booking created successfully. Please complete your payment within 10 minutes to confirm your reservation. Unpaid bookings will be automatically released.", created);
     }
 
     @PutMapping("/{id}/confirm/{bookingReference}")
