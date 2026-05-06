@@ -12,6 +12,8 @@ import com.goBhutan.adminPanel.busAdmin.repository.BusScheduleRepository;
 import com.goBhutan.adminPanel.busAdmin.repository.SeatBookingRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -35,7 +37,9 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class BusScheduleService {
 
+    private static final Logger log = LoggerFactory.getLogger(BusScheduleService.class);
     private static final int MAX_GENERATION_DAYS = 30;
+    private static final int MAX_INCREMENTAL_LOOKAHEAD_DAYS = 370;
     private static final int CHECK_IN_OFFSET_MINUTES = 30;
     private static final DateTimeFormatter TIME_DISPLAY_FORMATTER =
             DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH);
@@ -70,6 +74,49 @@ public class BusScheduleService {
 
         deactivateStaleSchedules(bus, adminUserId, startDate, days, expectedSchedules);
         return scheduleRepository.saveAll(result);
+    }
+
+    public List<Schedule> generateNextSchedulesForAllActiveBuses() {
+        LocalDateTime now = LocalDateTime.now();
+        List<Bus> activeBuses = busRepository.findActiveBuses();
+        List<Schedule> schedulesToSave = new ArrayList<>();
+
+        for (Bus activeBus : activeBuses) {
+            if (activeBus.getId() == null) {
+                continue;
+            }
+
+            Bus bus = busRepository.lockActiveById(activeBus.getId()).orElse(null);
+            if (bus == null) {
+                continue;
+            }
+
+            List<BusRoute> routes = busRouteRepository.findActiveRoutesByBusId(bus.getId());
+            if (routes.isEmpty()) {
+                continue;
+            }
+
+            ensureScheduleAnchors(bus, routes);
+            for (BusRoute route : routes) {
+                try {
+                    Schedule schedule = buildNextIncrementalSchedule(bus, route, now);
+                    if (schedule != null) {
+                        schedulesToSave.add(schedule);
+                    }
+                } catch (RuntimeException ex) {
+                    log.warn(
+                            "booking-schedule skip busId={} routeId={} reason={}",
+                            bus.getId(),
+                            route.getId(),
+                            ex.getMessage());
+                }
+            }
+        }
+
+        if (schedulesToSave.isEmpty()) {
+            return List.of();
+        }
+        return scheduleRepository.saveAll(schedulesToSave);
     }
 
     /* unimplemented
@@ -149,6 +196,57 @@ public class BusScheduleService {
         }
 
         return result;
+    }
+
+    private Schedule buildNextIncrementalSchedule(Bus bus, BusRoute route, LocalDateTime now) {
+        Schedule latestSchedule = scheduleRepository
+                .findTopByBusAndRouteAndActiveTrueOrderByDepartureTimeDesc(bus, route)
+                .orElse(null);
+
+        LocalDate searchDate = getNextIncrementalSearchDate(latestSchedule, now);
+        LocalDate nextOperatingDate = findNextOperatingDate(bus, searchDate);
+        LocalDateTime departure = LocalDateTime.of(nextOperatingDate, route.getDepartureTime());
+        if (!departure.isAfter(now)) {
+            return null;
+        }
+
+        LocalDateTime arrival = departure.plusMinutes(getEstimatedDurationMinutes(route));
+        Schedule existing = scheduleRepository.findByBusAndRouteAndDepartureTime(bus, route, departure)
+                .orElse(null);
+        if (existing != null) {
+            return refreshSchedule(existing, route, departure, arrival, bus) ? existing : null;
+        }
+
+        Schedule schedule = new Schedule();
+        schedule.setBus(bus);
+        schedule.setRoute(route);
+        schedule.setDepartureTime(departure);
+        schedule.setArrivalTime(arrival);
+        schedule.setAvailableSeats(bus.getTotalSeats());
+        applyFareSnapshot(schedule, route);
+        schedule.setActive(true);
+        return schedule;
+    }
+
+    private LocalDate getNextIncrementalSearchDate(Schedule latestSchedule, LocalDateTime now) {
+        LocalDate earliestDate = now.toLocalDate().plusDays(1);
+        if (latestSchedule == null || latestSchedule.getDepartureTime() == null) {
+            return earliestDate;
+        }
+
+        LocalDate dateAfterLatestSchedule = latestSchedule.getDepartureTime().toLocalDate().plusDays(1);
+        return dateAfterLatestSchedule.isAfter(earliestDate) ? dateAfterLatestSchedule : earliestDate;
+    }
+
+    private LocalDate findNextOperatingDate(Bus bus, LocalDate startDate) {
+        LocalDate date = startDate;
+        for (int i = 0; i < MAX_INCREMENTAL_LOOKAHEAD_DAYS; i++) {
+            if (shouldRun(bus, date)) {
+                return date;
+            }
+            date = date.plusDays(1);
+        }
+        throw new RuntimeException("No valid operating date found within " + MAX_INCREMENTAL_LOOKAHEAD_DAYS + " days");
     }
 
     private LocalDate normalizeStartDate(LocalDate startDate) {

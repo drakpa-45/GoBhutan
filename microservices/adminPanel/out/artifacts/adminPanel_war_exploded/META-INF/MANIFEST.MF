@@ -1,9 +1,0 @@
-Manifest-Version: 1.0
-Created-By: IntelliJ IDEA
-Built-By: PemaDrakpa
-Build-Jdk: Oracle OpenJDK version 17.0.12
-Implementation-Title: adminPanel
-Implementation-Version: 0.0.1-SNAPSHOT
-Implementation-Vendor-Id: com.goBhutan
-Main-Class: ${start-class}
-

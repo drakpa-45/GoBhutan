@@ -28,4 +28,8 @@ public interface BusRepository extends JpaRepository<Bus, Long> {
     @Query("SELECT b FROM Bus b WHERE b.id = :id AND b.adminUserId = :adminUserId AND (b.isActive = true OR b.isActive IS NULL)")
     Optional<Bus> lockByIdAndAdminUserId(@Param("id") Long id,
                                          @Param("adminUserId") String adminUserId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT b FROM Bus b WHERE b.id = :id AND (b.isActive = true OR b.isActive IS NULL)")
+    Optional<Bus> lockActiveById(@Param("id") Long id);
 }

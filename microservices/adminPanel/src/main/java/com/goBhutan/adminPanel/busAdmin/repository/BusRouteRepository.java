@@ -32,6 +32,17 @@ public interface BusRouteRepository extends JpaRepository<BusRoute, Long> {
         SELECT r
         FROM BusRoute r
         JOIN FETCH r.bus b
+        WHERE b.id = :busId
+          AND r.active = true
+          AND (b.isActive = true OR b.isActive IS NULL)
+        ORDER BY r.departureTime ASC
+    """)
+    List<BusRoute> findActiveRoutesByBusId(@Param("busId") Long busId);
+
+    @Query("""
+        SELECT r
+        FROM BusRoute r
+        JOIN FETCH r.bus b
         WHERE r.active = true
           AND (b.isActive = true OR b.isActive IS NULL)
           AND LOWER(TRIM(r.source)) = LOWER(:source)
