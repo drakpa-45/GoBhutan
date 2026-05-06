@@ -41,7 +41,7 @@ public class AppUserService {
      */
     @Transactional
     public boolean createUserIfNotExists(String username, String email, String firstName,
-                                         String lastName, String password, String keycloakId) {
+                                         String lastName, String password, String keycloakId, Set<String> roles, int phoneNumber) {
         Optional<AppUser> existing = repo.findByUsername(username);
         if (existing.isPresent()) {
             return false; // already exists
@@ -55,7 +55,8 @@ public class AppUserService {
         user.setPassword(password); // optionally hash
         user.setKeycloakId(keycloakId); // ✅ set Keycloak ID
         user.setClients(new HashSet<>());
-
+        user.setRoles(roles);
+        user.setPhoneNumber(phoneNumber);
         repo.save(user);
         return true;
     }

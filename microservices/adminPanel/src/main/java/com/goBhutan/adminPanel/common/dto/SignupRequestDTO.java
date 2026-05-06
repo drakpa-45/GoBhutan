@@ -1,6 +1,7 @@
 package com.goBhutan.adminPanel.common.dto;
 
 import java.util.List;
+import java.util.Set;
 
 public class SignupRequestDTO {
     private String username;
@@ -8,6 +9,10 @@ public class SignupRequestDTO {
     private String password;
     private String firstName;
     private String lastName;
+
+    private int phoneNumber;
+
+    private Set<String> roles;
     private List<String> clients; // 🔹 new field to select multiple clients
 
     public SignupRequestDTO() {}
@@ -39,4 +44,20 @@ public class SignupRequestDTO {
 
     public List<String> getClients() { return clients; } // 🔹 getter
     public void setClients(List<String> clients) { this.clients = clients; } // 🔹 setter
+
+    public Set<String> getRoles() {
+        return roles;
+    }
+
+    public void setRoles(Set<String> roles) {
+        this.roles = roles;
+    }
+
+    public int getPhoneNumber() {
+        return phoneNumber;
+    }
+
+    public void setPhoneNumber(int phoneNumber) {
+        this.phoneNumber = phoneNumber;
+    }
 }

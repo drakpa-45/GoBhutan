@@ -33,6 +33,9 @@ public class AppUser {
 	@Column(name = "last_name")
 	private String lastName;
 
+	@Column(name = "phone_number")
+	private Integer phoneNumber;
+
 	@Column
 	private String password; // plain text for now; consider hashing
 
@@ -44,6 +47,15 @@ public class AppUser {
 	@CollectionTable(name = "gb_user_clients", joinColumns = @JoinColumn(name = "user_id"))
 	@Column(name = "client")
 	private Set<String> clients = new HashSet<>();
+
+	@ElementCollection(fetch = FetchType.EAGER)
+	@CollectionTable(name = "gb_user_roles", joinColumns = @JoinColumn(name = "user_id"))
+	@Column(name = "role")
+	private Set<String> roles = new HashSet<>();
+
+	// getter & setter
+	public Set<String> getRoles() { return roles; }
+	public void setRoles(Set<String> roles) { this.roles = roles; }
 
 	// Getters and Setters
 	public String getId() { return id; }
@@ -77,5 +89,13 @@ public class AppUser {
 	@PrePersist
 	public void ensureId() {
 		if (this.id == null) this.id = UUID.randomUUID().toString();
+	}
+
+	public Integer getPhoneNumber() {
+		return phoneNumber;
+	}
+
+	public void setPhoneNumber(Integer phoneNumber) {
+		this.phoneNumber = phoneNumber;
 	}
 }
