@@ -16,4 +16,5 @@ README.md
 .idea/
 /uploads/
 /backup/
+**/out/artifacts/
 
