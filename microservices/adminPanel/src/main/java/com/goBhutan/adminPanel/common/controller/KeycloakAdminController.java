@@ -218,6 +218,7 @@ public class KeycloakAdminController {
                 data.put("accessToken", tokenResponse.get("access_token"));
                 data.put("refreshToken", tokenResponse.get("refresh_token"));
                 data.put("clients", userClients);
+                data.put("roles", dbUser.getRoles());
                 data.put("firstName", dbUser.getFirstName());
                 data.put("lastName", dbUser.getLastName());
 
