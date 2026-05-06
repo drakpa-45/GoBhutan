@@ -1,1 +1,5 @@
 /.metadata/
+
+# Build outputs
+target/
+**/out/artifacts/
