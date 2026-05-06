@@ -77,6 +77,10 @@ app:
     bus:
       release-expired-lock: true
       seat-lock-minutes: 5
+      booking-schedule:
+        enabled: true
+        cron: "0 0 23 * * *"
+        zone: Asia/Thimphu
       jwt:
         auth:
           converter:

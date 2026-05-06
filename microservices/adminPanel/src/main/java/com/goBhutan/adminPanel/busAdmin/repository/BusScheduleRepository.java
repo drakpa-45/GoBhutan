@@ -108,6 +108,7 @@ public interface BusScheduleRepository extends JpaRepository<Schedule, Long> {
 
     boolean existsByBusAndRouteAndDepartureTime(Bus bus, BusRoute route, LocalDateTime departureTime);
     Optional<Schedule> findByBusAndRouteAndDepartureTime(Bus bus, BusRoute route, LocalDateTime departureTime);
+    Optional<Schedule> findTopByBusAndRouteAndActiveTrueOrderByDepartureTimeDesc(Bus bus, BusRoute route);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM Schedule s WHERE s.id = :id AND s.bus.adminUserId = :adminUserId")

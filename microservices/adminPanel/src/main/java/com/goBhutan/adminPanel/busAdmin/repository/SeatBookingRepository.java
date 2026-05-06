@@ -1,6 +1,5 @@
 package com.goBhutan.adminPanel.busAdmin.repository;
 
-import com.goBhutan.adminPanel.busAdmin.entity.Schedule;
 import com.goBhutan.adminPanel.busAdmin.entity.SeatBooking;
 import com.goBhutan.adminPanel.busAdmin.enums.BookingStatus;
 import jakarta.persistence.LockModeType;
@@ -19,33 +18,36 @@ public interface SeatBookingRepository extends JpaRepository<SeatBooking, Long> 
 
     @Modifying
     @Query("""
-        UPDATE SeatBooking b
-        SET b.status = com.goBhutan.adminPanel.busAdmin.enums.BookingStatus.EXPIRED
-        WHERE b.status = com.goBhutan.adminPanel.busAdmin.enums.BookingStatus.LOCKED
-          AND b.lockExpiry IS NOT NULL
-          AND b.lockExpiry < :now
-    """)
+                UPDATE SeatBooking b
+                SET b.status = com.goBhutan.adminPanel.busAdmin.enums.BookingStatus.EXPIRED
+                WHERE b.status = com.goBhutan.adminPanel.busAdmin.enums.BookingStatus.LOCKED
+                  AND b.lockExpiry IS NOT NULL
+                  AND b.lockExpiry < :now
+            """)
     int releaseExpiredLocks(LocalDateTime now);
 
     @Query("""
-        SELECT b
-        FROM SeatBooking b
-        JOIN FETCH b.schedule s
-        WHERE b.status = com.goBhutan.adminPanel.busAdmin.enums.BookingStatus.LOCKED
-          AND b.lockExpiry < :now
-    """)
+                SELECT b
+                FROM SeatBooking b
+                JOIN FETCH b.schedule s
+                WHERE b.status = com.goBhutan.adminPanel.busAdmin.enums.BookingStatus.LOCKED
+                  AND b.lockExpiry < :now
+            """)
     List<SeatBooking> findExpiredLockedSeats(LocalDateTime now);
 
     List<SeatBooking> findByScheduleId(Long scheduleId);
+
     Optional<SeatBooking> findByScheduleIdAndSeatNumber(Long scheduleId, Integer seatNumber);
+
     boolean existsByScheduleIdAndStatus(Long scheduleId, BookingStatus status);
+
     long countByScheduleIdAndStatus(Long scheduleId, BookingStatus status);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
-        SELECT b
-        FROM SeatBooking b
-        WHERE b.bookingRef = :bookingRef
-    """)
+                SELECT b
+                FROM SeatBooking b
+                WHERE b.bookingRef = :bookingRef
+            """)
     List<SeatBooking> findByBookingRefForUpdate(String bookingRef);
 }
