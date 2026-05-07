@@ -33,8 +33,6 @@ public class AppUser {
 	@Column(name = "last_name")
 	private String lastName;
 
-	@Column(name = "phone_number")
-	private Integer phoneNumber;
 
 	@Column
 	private String password; // plain text for now; consider hashing
@@ -53,9 +51,24 @@ public class AppUser {
 	@Column(name = "role")
 	private Set<String> roles = new HashSet<>();
 
+	@Column(name = "phone_number")
+	private Integer phoneNumber;
+
 	// getter & setter
 	public Set<String> getRoles() { return roles; }
 	public void setRoles(Set<String> roles) { this.roles = roles; }
+
+	@Column(name = "entity_id")
+	private String entityId;  // e.g. hotelId, busCompanyId, theaterId
+
+	@Column(name = "entity_type")
+	private String entityType;  // e.g. "hotel", "bus", "theater"
+
+	// getters & setters
+	public String getEntityId() { return entityId; }
+	public void setEntityId(String entityId) { this.entityId = entityId; }
+	public String getEntityType() { return entityType; }
+	public void setEntityType(String entityType) { this.entityType = entityType; }
 
 	// Getters and Setters
 	public String getId() { return id; }

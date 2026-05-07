@@ -13,6 +13,8 @@ public class StaffCreateRequestDTO {
     private String firstName;
     private String lastName;
     private String password;
-    private int phoneNumber;
-    private String client;  // e.g. "hotel", "bus", "theater"
+    private Integer phoneNumber;
+    private String client;       // e.g. "hotel"
+    private String entityId;     // e.g. specific hotelId from tbl_ht_hotels
+    private String entityType;   // e.g. "hotel"
 }
