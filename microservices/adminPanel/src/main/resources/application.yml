@@ -28,7 +28,17 @@ spring:
         jwt:
           #issuer-uri: http://localhost:8084/realms/Go-Bhutan  # ? Keycloak realm issuer
           issuer-uri: https://gobhutan.site/realms/Go-Bhutan  # ? Keycloak realm issuer
-
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: pemadrakpa1996@gmail.com
+    password: lngw gnjk pejk gpho   # Gmail App Password, not account password
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 # Multiple client configs
 app:
   payment:

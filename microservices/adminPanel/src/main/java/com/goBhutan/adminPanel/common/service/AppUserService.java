@@ -19,9 +19,6 @@ public class AppUserService {
         this.repo = repo;
     }
 
-    /**
-     * Get user by Keycloak ID or create a new one if it doesn't exist.
-     */
     @Transactional
     public AppUser getOrCreateFromJwt(String keycloakId, String username, String email) {
         return repo.findByKeycloakId(keycloakId)
@@ -31,20 +28,17 @@ public class AppUserService {
                     u.setUsername(username);
                     u.setEmail(email);
                     u.setClients(new HashSet<>());
+                    u.setRoles(new HashSet<>());   // ✅ init roles
                     return repo.save(u);
                 });
     }
 
-    /**
-     * Create a user in DB if not exists by username.
-     * Returns true if created, false if already exists.
-     */
     @Transactional
     public boolean createUserIfNotExists(String username, String email, String firstName,
-                                         String lastName, String password, String keycloakId, Set<String> roles, int phoneNumber) {
-        Optional<AppUser> existing = repo.findByUsername(username);
-        if (existing.isPresent()) {
-            return false; // already exists
+                                         String lastName, String password,
+                                         String keycloakId, Set<String> roles, int phoneNumber) {
+        if (repo.findByUsername(username).isPresent()) {
+            return false;
         }
 
         AppUser user = new AppUser();
@@ -52,46 +46,68 @@ public class AppUserService {
         user.setEmail(email);
         user.setFirstName(firstName);
         user.setLastName(lastName);
-        user.setPassword(password); // optionally hash
-        user.setKeycloakId(keycloakId); // ✅ set Keycloak ID
+        user.setPassword(password);
+        user.setKeycloakId(keycloakId);
         user.setClients(new HashSet<>());
-        user.setRoles(roles);
+        user.setRoles(new HashSet<>());   // ✅ always empty — roles added LAST
         user.setPhoneNumber(phoneNumber);
         repo.save(user);
         return true;
     }
 
+    @Transactional
+    public boolean createStaffIfNotExists(String username, String email, String firstName,
+                                          String lastName, String password, String keycloakId,
+                                          Set<String> roles, int phoneNumber,
+                                          String entityId, String entityType) {
+        if (repo.findByUsername(username).isPresent()) {
+            return false;
+        }
 
-    /**
-     * Assign a client to an existing user.
-     */
+        AppUser user = new AppUser();
+        user.setUsername(username);
+        user.setEmail(email);
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
+        user.setPassword(password);
+        user.setKeycloakId(keycloakId);
+        user.setClients(new HashSet<>());
+        user.setRoles(new HashSet<>());   // ✅ always empty — roles added LAST
+        user.setPhoneNumber(phoneNumber);
+        user.setEntityId(entityId);
+        user.setEntityType(entityType);
+        repo.save(user);
+        return true;
+    }
+
+    // ✅ Add roles AFTER assignClient to prevent overwrite
+    @Transactional
+    public void addRoles(String username, Set<String> roles) {
+        AppUser user = repo.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+        user.getRoles().addAll(roles);
+        repo.save(user);
+    }
+
     @Transactional
     public void assignClient(String username, String client) {
         AppUser user = repo.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
-
         Set<String> clients = Optional.ofNullable(user.getClients())
                 .orElseGet(HashSet::new);
         clients.add(client);
         user.setClients(clients);
-        repo.save(user); // persists the change
+        repo.save(user);
     }
 
     @Transactional
     public AppUser updateClients(String username, Set<String> newClients) {
-
         AppUser user = repo.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
-
-        // Replace existing clients with selected ones
         user.setClients(new HashSet<>(newClients));
-
         return repo.save(user);
     }
 
-    /**
-     * Find AppUser by username.
-     */
     @Transactional
     public Optional<AppUser> findByUsername(String username) {
         return repo.findByUsername(username);
@@ -102,12 +118,22 @@ public class AppUserService {
         return repo.findByKeycloakId(keycloakId);
     }
 
-    /**
-     * Get all clients assigned to a user.
-     */
     public List<String> getClientsForUser(String username) {
         return repo.findByUsername(username)
                 .map(user -> List.copyOf(Optional.ofNullable(user.getClients()).orElse(Set.of())))
                 .orElse(List.of());
+    }
+
+    @Transactional
+    public void updatePassword(String username, String newPassword) {
+        AppUser user = repo.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+        user.setPassword(newPassword);
+        repo.save(user);
+    }
+
+    // Find staff by entity
+    public List<AppUser> getStaffByEntity(String entityId, String entityType) {
+        return repo.findByEntityIdAndEntityType(entityId, entityType);
     }
 }
