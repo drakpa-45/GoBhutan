@@ -21,6 +21,11 @@ spring:
     properties:
       hibernate.dialect: org.hibernate.dialect.MySQLDialect   # Updated to MySQL8Dialect for modern MySQL
     show-sql: true
+  task:
+    scheduling:
+      pool:
+        size: 4
+      thread-name-prefix: go-bhutan-scheduler-
   #Spring Security OAuth2 Resource Server (JWT)
   security:
     oauth2:
@@ -92,7 +97,7 @@ app:
       admin-role: BUS_ADMIN
       counter-role: BUS_COUNTER
       release-expired-lock: true
-      seat-lock-minutes: 5
+      seat-lock-minutes: 3
       booking-schedule:
         enabled: true
         cron: "0 0 23 * * *"

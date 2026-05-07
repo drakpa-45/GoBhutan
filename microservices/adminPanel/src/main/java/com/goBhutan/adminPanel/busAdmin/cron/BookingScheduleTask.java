@@ -29,10 +29,7 @@ public class BookingScheduleTask {
         log.info("booking-schedule-task initialized enabled={}", bookingScheduleEnabled);
     }
 
-    @Scheduled(
-            cron = "${app.clients.bus.booking-schedule.cron:0 0 23 * * *}",
-            zone = "${app.clients.bus.booking-schedule.zone:Asia/Thimphu}"
-    )
+    @Scheduled(cron = "${app.clients.bus.booking-schedule.cron:0 0 23 * * *}", zone = "${app.clients.bus.booking-schedule.zone:Asia/Thimphu}")
     public void generateNextBusSchedules() {
         if (!bookingScheduleEnabled) {
             return;

@@ -32,6 +32,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
 @Service
 @Transactional
 @RequiredArgsConstructor
@@ -41,8 +42,8 @@ public class BusScheduleService {
     private static final int MAX_GENERATION_DAYS = 30;
     private static final int MAX_INCREMENTAL_LOOKAHEAD_DAYS = 370;
     private static final int CHECK_IN_OFFSET_MINUTES = 30;
-    private static final DateTimeFormatter TIME_DISPLAY_FORMATTER =
-            DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH);
+    private static final DateTimeFormatter TIME_DISPLAY_FORMATTER = DateTimeFormatter.ofPattern("hh:mm a",
+            Locale.ENGLISH);
 
     private final BusScheduleRepository scheduleRepository;
     private final BusRepository busRepository;
@@ -80,6 +81,9 @@ public class BusScheduleService {
         LocalDateTime now = LocalDateTime.now();
         List<Bus> activeBuses = busRepository.findActiveBuses();
         List<Schedule> schedulesToSave = new ArrayList<>();
+        int lockedBusMisses = 0;
+        int busesWithoutRoutes = 0;
+        int routesChecked = 0;
 
         for (Bus activeBus : activeBuses) {
             if (activeBus.getId() == null) {
@@ -88,16 +92,19 @@ public class BusScheduleService {
 
             Bus bus = busRepository.lockActiveById(activeBus.getId()).orElse(null);
             if (bus == null) {
+                lockedBusMisses++;
                 continue;
             }
 
             List<BusRoute> routes = busRouteRepository.findActiveRoutesByBusId(bus.getId());
             if (routes.isEmpty()) {
+                busesWithoutRoutes++;
                 continue;
             }
 
             ensureScheduleAnchors(bus, routes);
             for (BusRoute route : routes) {
+                routesChecked++;
                 try {
                     Schedule schedule = buildNextIncrementalSchedule(bus, route, now);
                     if (schedule != null) {
@@ -105,7 +112,7 @@ public class BusScheduleService {
                     }
                 } catch (RuntimeException ex) {
                     log.warn(
-                            "booking-schedule skip busId={} routeId={} reason={}",
+                            "bus-booking-schedule skip busId={} routeId={} reason={}",
                             bus.getId(),
                             route.getId(),
                             ex.getMessage());
@@ -113,45 +120,59 @@ public class BusScheduleService {
             }
         }
 
+        log.info(
+                "booking-schedule generation summary activeBuses={} lockedBusMisses={} busesWithoutRoutes={} routesChecked={} schedulesToSave={}",
+                activeBuses.size(),
+                lockedBusMisses,
+                busesWithoutRoutes,
+                routesChecked,
+                schedulesToSave.size());
+
         if (schedulesToSave.isEmpty()) {
             return List.of();
         }
         return scheduleRepository.saveAll(schedulesToSave);
     }
 
-    /* unimplemented
+    /*
+     * unimplemented
      *
      * Keep this disabled until the API needs route-selected generation.
      * Current implemented generation is bus-based: one busId generates
      * schedules for all active routes mapped to that bus.
      *
      * public List<Schedule> generateSchedulesForRoutes(Set<Long> routeIds,
-     *                                                  LocalDate startDate,
-     *                                                  int days,
-     *                                                  String adminUserId) {
-     *     Set<Long> selectedRouteIds = normalizeRouteIds(routeIds);
-     *     List<BusRoute> routes = busRouteRepository.findActiveRoutesByIdsAndAdminUserId(selectedRouteIds, adminUserId);
-     *     if (routes.size() != selectedRouteIds.size()) {
-     *         throw new RuntimeException("One or more routes were not found or are inactive.");
-     *     }
+     * LocalDate startDate,
+     * int days,
+     * String adminUserId) {
+     * Set<Long> selectedRouteIds = normalizeRouteIds(routeIds);
+     * List<BusRoute> routes =
+     * busRouteRepository.findActiveRoutesByIdsAndAdminUserId(selectedRouteIds,
+     * adminUserId);
+     * if (routes.size() != selectedRouteIds.size()) {
+     * throw new
+     * RuntimeException("One or more routes were not found or are inactive.");
+     * }
      *
-     *     startDate = normalizeStartDate(startDate);
-     *     days = normalizeDays(days);
+     * startDate = normalizeStartDate(startDate);
+     * days = normalizeDays(days);
      *
-     *     Map<Long, Bus> buses = lockBusesForRoutes(routes, adminUserId);
-     *     Set<ScheduleKey> expectedSchedules = new HashSet<>();
-     *     List<Schedule> result = upsertSchedulesForRoutes(routes, buses, startDate, days, expectedSchedules);
+     * Map<Long, Bus> buses = lockBusesForRoutes(routes, adminUserId);
+     * Set<ScheduleKey> expectedSchedules = new HashSet<>();
+     * List<Schedule> result = upsertSchedulesForRoutes(routes, buses, startDate,
+     * days, expectedSchedules);
      *
-     *     deactivateStaleSchedulesForRoutes(selectedRouteIds, adminUserId, startDate, days, expectedSchedules);
-     *     return scheduleRepository.saveAll(result);
+     * deactivateStaleSchedulesForRoutes(selectedRouteIds, adminUserId, startDate,
+     * days, expectedSchedules);
+     * return scheduleRepository.saveAll(result);
      * }
      */
 
     private List<Schedule> upsertSchedulesForRoutes(List<BusRoute> routes,
-                                                    Map<Long, Bus> buses,
-                                                    LocalDate startDate,
-                                                    int days,
-                                                    Set<ScheduleKey> expectedSchedules) {
+            Map<Long, Bus> buses,
+            LocalDate startDate,
+            int days,
+            Set<ScheduleKey> expectedSchedules) {
         ensureScheduleAnchors(routes, buses);
 
         LocalDateTime now = LocalDateTime.now();
@@ -268,10 +289,10 @@ public class BusScheduleService {
     }
 
     private boolean refreshSchedule(Schedule schedule,
-                                    BusRoute route,
-                                    LocalDateTime departure,
-                                    LocalDateTime arrival,
-                                    Bus bus) {
+            BusRoute route,
+            LocalDateTime departure,
+            LocalDateTime arrival,
+            Bus bus) {
         boolean changed = false;
 
         if (!Objects.equals(schedule.getDepartureTime(), departure)) {
@@ -311,9 +332,12 @@ public class BusScheduleService {
         }
 
         switch (recurrenceType) {
-            case DAILY: return true;
-            case WEEKDAYS: return !isWeekend(date);
-            case WEEKENDS: return isWeekend(date);
+            case DAILY:
+                return true;
+            case WEEKDAYS:
+                return !isWeekend(date);
+            case WEEKENDS:
+                return isWeekend(date);
             case CUSTOM:
                 Set<DayOfWeek> operatingDays = bus.getOperatingDays();
                 if (operatingDays == null || operatingDays.isEmpty()) {
@@ -323,7 +347,8 @@ public class BusScheduleService {
             case ALTERNATE:
                 LocalDate anchorDate = bus.getScheduleAnchorDate();
                 return !date.isBefore(anchorDate) && ChronoUnit.DAYS.between(anchorDate, date) % 2 == 0;
-            default: return false;
+            default:
+                return false;
         }
     }
 
@@ -365,10 +390,10 @@ public class BusScheduleService {
     }
 
     private void deactivateStaleSchedules(Bus bus,
-                                          String adminUserId,
-                                          LocalDate startDate,
-                                          int days,
-                                          Set<ScheduleKey> expectedSchedules) {
+            String adminUserId,
+            LocalDate startDate,
+            int days,
+            Set<ScheduleKey> expectedSchedules) {
         LocalDateTime rangeStart = startDate.atStartOfDay();
         LocalDateTime rangeEnd = startDate.plusDays(days - 1L).atTime(LocalTime.MAX);
 
@@ -380,7 +405,7 @@ public class BusScheduleService {
     }
 
     private void deactivateUnexpectedSchedules(List<Schedule> activeSchedules,
-                                               Set<ScheduleKey> expectedSchedules) {
+            Set<ScheduleKey> expectedSchedules) {
         List<Schedule> schedulesToDeactivate = new ArrayList<>();
         for (Schedule schedule : activeSchedules) {
             Long routeId = schedule.getRoute() != null ? schedule.getRoute().getId() : null;
@@ -438,15 +463,15 @@ public class BusScheduleService {
     }
 
     public List<Schedule> getSchedulesByDateRange(String adminUserId,
-                                                  LocalDateTime start,
-                                                  LocalDateTime end) {
+            LocalDateTime start,
+            LocalDateTime end) {
         return getSchedulesByDateRange(adminUserId, start, end, false);
     }
 
     public List<Schedule> getSchedulesByDateRange(String adminUserId,
-                                                  LocalDateTime start,
-                                                  LocalDateTime end,
-                                                  boolean includeInactive) {
+            LocalDateTime start,
+            LocalDateTime end,
+            boolean includeInactive) {
         if (includeInactive) {
             return scheduleRepository.findByBus_AdminUserIdAndDepartureTimeBetween(adminUserId, start, end);
         }
@@ -502,8 +527,7 @@ public class BusScheduleService {
                 formatDisplayTime(schedule.getDepartureTime()),
                 schedule.getArrivalTime(),
                 formatDisplayTime(schedule.getArrivalTime()),
-                schedule.getAvailableSeats()
-        );
+                schedule.getAvailableSeats());
     }
 
     private LocalDateTime calculateCheckInTime(LocalDateTime departureTime) {
