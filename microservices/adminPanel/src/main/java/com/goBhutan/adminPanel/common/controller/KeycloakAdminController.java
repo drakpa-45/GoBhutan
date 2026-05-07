@@ -9,6 +9,7 @@ import com.goBhutan.adminPanel.common.service.AppUserService;
 import com.goBhutan.adminPanel.common.service.UserTokenService;
 import jakarta.validation.Valid;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
@@ -73,7 +74,16 @@ public class KeycloakAdminController {
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<SignupResponseDTO>> signup(@RequestBody SignupRequestDTO req) {
         try {
+
+            // ✅ Check username uniqueness FIRST before any Keycloak calls
+            if (appUserService.findByUsername(req.getUsername()).isPresent()) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ApiResponse.error("Username '" + req.getUsername() + "' is already taken. Please choose another username"));
+            }
+
             String kcId = null;
+
+            Set<String> allRoles = new HashSet<>();
 
             // 🔹 Loop through each client
             for (String client : req.getClients()) {
@@ -121,6 +131,11 @@ public class KeycloakAdminController {
                         kcId = (String) searchResp.getBody()[0].get("id");
                     }
                 }
+                String adminRole = clientProperties.getClient(client).getAdminRole();
+                if (adminRole != null && !adminRole.isEmpty() && kcId != null) {
+                    assignRealmRole(adminToken, config, kcId, adminRole);
+                    allRoles.add(adminRole);
+                }
 
                 // 3️⃣ Save user in DB (only once)
                 appUserService.createUserIfNotExists(
@@ -129,7 +144,7 @@ public class KeycloakAdminController {
                         req.getFirstName(),
                         req.getLastName(),
                         req.getPassword(),
-                        kcId
+                        kcId,allRoles,req.getPhoneNumber()
                 );
 
                 // 4️⃣ Assign client
@@ -145,6 +160,7 @@ public class KeycloakAdminController {
                     dbUser.getKeycloakId(),
                     dbUser.getUsername(),
                     dbUser.getEmail(),
+                    dbUser.getRoles(),dbUser.getPhoneNumber(),
                     List.copyOf(dbUser.getClients())
             );
 
@@ -202,6 +218,7 @@ public class KeycloakAdminController {
                 data.put("accessToken", tokenResponse.get("access_token"));
                 data.put("refreshToken", tokenResponse.get("refresh_token"));
                 data.put("clients", userClients);
+                data.put("roles", dbUser.getRoles());
                 data.put("firstName", dbUser.getFirstName());
                 data.put("lastName", dbUser.getLastName());
 
@@ -313,6 +330,101 @@ public class KeycloakAdminController {
                     .body(ApiResponse.error("Failed to update clients: " + e.getMessage()));
         }
     }
+
+    private void assignRealmRole(String adminToken, KeycloakConfig config, String kcId, String roleName) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(adminToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        // Fetch role representation from Keycloak
+        String roleUrl = String.format("%s/admin/realms/%s/roles/%s",
+                config.getServerUrl(), config.getRealm(), roleName);
+        ResponseEntity<Map> roleResp = rest.exchange(roleUrl, HttpMethod.GET,
+                new HttpEntity<>(headers), Map.class);
+
+        // Assign role to user
+        String assignUrl = String.format("%s/admin/realms/%s/users/%s/role-mappings/realm",
+                config.getServerUrl(), config.getRealm(), kcId);
+        rest.exchange(assignUrl, HttpMethod.POST,
+                new HttpEntity<>(List.of(roleResp.getBody()), headers), String.class);
+    }
+    @PostMapping("/staff/create")
+    @PreAuthorize("hasAnyRole('HOTEL_ADMIN', 'BUS_ADMIN', 'THEATER_ADMIN', 'TAXI_ADMIN')")
+    public ResponseEntity<ApiResponse<SignupResponseDTO>> createStaff(
+            @RequestBody StaffCreateRequestDTO req) {
+        try {
+            String client = req.getClient(); // e.g. "hotel"
+            KeycloakConfig config = getKeycloakConfig(client);
+            String adminToken = tokenService.getAdminToken(client);
+
+            // Get counter role from config
+            String counterRole = clientProperties.getClient(client).getCounterRole();
+            if (counterRole == null || counterRole.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("No counter role configured for client: " + client));
+            }
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(adminToken);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            // Search or create user in Keycloak — same logic as signup
+            String searchUrl = String.format("%s/admin/realms/%s/users?username=%s",
+                    config.getServerUrl(), config.getRealm(), req.getUsername());
+            ResponseEntity<Map[]> searchResp = rest.exchange(searchUrl, HttpMethod.GET,
+                    new HttpEntity<>(headers), Map[].class);
+
+            String kcId;
+            if (searchResp.getBody() != null && searchResp.getBody().length > 0) {
+                kcId = (String) searchResp.getBody()[0].get("id");
+            } else {
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("username", req.getUsername());
+                payload.put("email", req.getEmail());
+                payload.put("firstName", req.getFirstName());
+                payload.put("lastName", req.getLastName());
+                payload.put("enabled", true);
+
+                Map<String, Object> cred = new HashMap<>();
+                cred.put("type", "password");
+                cred.put("value", req.getPassword());
+                cred.put("temporary", true); // staff must reset on first login
+                payload.put("credentials", List.of(cred));
+
+                String createUrl = String.format("%s/admin/realms/%s/users",
+                        config.getServerUrl(), config.getRealm());
+                rest.exchange(createUrl, HttpMethod.POST,
+                        new HttpEntity<>(payload, headers), String.class);
+
+                searchResp = rest.exchange(searchUrl, HttpMethod.GET,
+                        new HttpEntity<>(headers), Map[].class);
+                kcId = (String) searchResp.getBody()[0].get("id");
+            }
+
+            // Assign counter role
+            assignRealmRole(adminToken, config, kcId, counterRole);
+
+            // Save to DB
+            appUserService.createUserIfNotExists(req.getUsername(), req.getEmail(),
+                    req.getFirstName(), req.getLastName(), req.getPassword(), kcId,Set.of(counterRole), req.getPhoneNumber());
+            appUserService.assignClient(req.getUsername(), client);
+
+            AppUser dbUser = appUserService.findByUsername(req.getUsername())
+                    .orElseThrow(() -> new RuntimeException("User not found after creation"));
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(
+                    "Staff created successfully",
+                    new SignupResponseDTO(dbUser.getId(), dbUser.getKeycloakId(),
+                            dbUser.getUsername(), dbUser.getEmail(),dbUser.getRoles(),dbUser.getPhoneNumber(),
+                            List.copyOf(dbUser.getClients()))
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Staff creation failed: " + e.getMessage()));
+        }
+    }
+
     // 🔹 Helper method to fetch Keycloak config
     private KeycloakConfig getKeycloakConfig(String clientKey) {
         var clientConfig = clientProperties.getClient(clientKey);

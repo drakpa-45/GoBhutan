@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -134,6 +135,18 @@ public class BookingService {
     public void confirmBooking(Long id, String bookingReference) {
         Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         String userId = jwt.getSubject();
+
+        // Print ALL claims to see what's available
+        jwt.getClaims().forEach((key, value) ->
+                System.out.println("Key: " + key + " => Value: " + value)
+        );
+
+        // Get realm roles
+        Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
+        List<String> roles = (List<String>) realmAccess.get("roles");
+
+        System.out.println(roles);
+// [default-roles-go-bhutan, offline_access, uma_authorization]
 
         Booking booking = bookingRepo.getBookingStatus(id, bookingReference);
 

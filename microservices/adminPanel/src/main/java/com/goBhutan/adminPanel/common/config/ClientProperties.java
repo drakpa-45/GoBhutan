@@ -25,6 +25,8 @@ public class ClientProperties {
     }
 
     public static class ClientConfig {
+        private String adminRole;
+        private String counterRole;
         private KeycloakConfig keycloak;
         private JwtConfig jwt;
 
@@ -43,6 +45,11 @@ public class ClientProperties {
         public void setJwt(JwtConfig jwt) {
             this.jwt = jwt;
         }
+
+        public String getAdminRole() { return adminRole; }
+        public void setAdminRole(String adminRole) { this.adminRole = adminRole; }
+        public String getCounterRole() { return counterRole; }
+        public void setCounterRole(String counterRole) { this.counterRole = counterRole; }
     }
 
     public static class KeycloakConfig {

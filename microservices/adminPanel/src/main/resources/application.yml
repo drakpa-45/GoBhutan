@@ -49,6 +49,8 @@ app:
       active: true
   clients:
     hotel:
+      admin-role: HOTEL_ADMIN
+      counter-role: HOTEL_COUNTER
       jwt: # JWT Role Converter
         auth:
           converter:
@@ -65,6 +67,8 @@ app:
           #clientSecret: QunAYZb7yPSV3hUi77cEvzQobDbHRbyO
           clientSecret: jdLpwvzOUWeQTkWffWSUmQnFnTsyNTSa
     theater:
+      admin-role: THEATER_ADMIN
+      counter-role: THEATER_COUNTER
       jwt: # JWT Role Converter
         auth:
           converter:
@@ -80,6 +84,8 @@ app:
           #clientSecret: d7zknakWJgDEOIb5gvQNQ64cS97G14cT
           clientSecret: PH6xReyj2Ip329p1RwRmgbcebi4kgjN0
     bus:
+      admin-role: BUS_ADMIN
+      counter-role: BUS_COUNTER
       release-expired-lock: true
       seat-lock-minutes: 3
       booking-schedule:
@@ -101,6 +107,7 @@ app:
           #clientSecret: YGVuF6q8Ce0QsDQWTSGe8J8I5489P1tE
           clientSecret: nVScjDVTJbAMNcuOJuqVpsOYbUl53WF4
     public:
+      admin-role: PUBLIC_USER
       release-expired-lock: false
       jwt:
         auth:
@@ -117,6 +124,8 @@ app:
           #clientSecret: Rteig3b0B8yAofYnjCg56FRjA7C76L1y
           clientSecret: BPnw0GWgNPGmyldTNnwnc4w0XrdSzztG
     taxi:
+      admin-role: TAXI_ADMIN
+      counter-role: TAXI_COUNTER
       release-expired-lock: false
       jwt:
         auth:
