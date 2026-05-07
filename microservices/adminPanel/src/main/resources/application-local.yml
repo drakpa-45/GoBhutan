@@ -21,6 +21,11 @@ spring:
     properties:
       hibernate.dialect: org.hibernate.dialect.MySQLDialect   # Updated to MySQL8Dialect for modern MySQL
     show-sql: true
+  task:
+    scheduling:
+      pool:
+        size: 4
+      thread-name-prefix: go-bhutan-scheduler-
   #Spring Security OAuth2 Resource Server (JWT)
   security:
     oauth2:

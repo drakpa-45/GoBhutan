@@ -7,8 +7,6 @@ import com.goBhutan.adminPanel.hotel.entity.Booking;
 import com.goBhutan.adminPanel.hotel.repository.BookingSummary;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import com.goBhutan.adminPanel.hotel.service.BookingService;
