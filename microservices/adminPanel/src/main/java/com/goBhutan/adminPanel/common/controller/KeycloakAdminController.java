@@ -227,8 +227,6 @@ public class KeycloakAdminController {
                 data.put("refreshToken", tokenResponse.get("refresh_token"));
                 data.put("clients", userClients);
                 data.put("roles", dbUser.getRoles());
-                data.put("entityId", dbUser.getEntityId());
-                data.put("entityType", dbUser.getEntityType());
                 data.put("firstName", dbUser.getFirstName());
                 data.put("lastName", dbUser.getLastName());
 
@@ -291,33 +289,6 @@ public class KeycloakAdminController {
         }
     }
 
-//    @PostMapping("/update-clients")
-//    public ResponseEntity<ApiResponse<List<String>>> updateClients(@RequestBody SignupRequestDTO req) {
-//        try {
-//            // Fetch user from DB
-//            AppUser user = appUserService.findByUsername(req.getUsername())
-//                    .orElseThrow(() -> new RuntimeException("User not found"));
-//
-//            // Assign new clients
-//            for (String client : req.getClients()) {
-//                if (!user.getClients().contains(client)) {
-//                    appUserService.assignClient(req.getUsername(), client);
-//                }
-//            }
-//
-//            // Fetch updated user
-//            AppUser updatedUser = appUserService.findByUsername(req.getUsername())
-//                    .orElseThrow(() -> new RuntimeException("User not found after update"));
-//
-//            return ResponseEntity.ok(ApiResponse.success("Clients updated successfully",
-//                    List.copyOf(updatedUser.getClients())));
-//
-//        } catch (Exception e) {
-//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-//                    .body(ApiResponse.error("Failed to update clients: " + e.getMessage()));
-//        }
-//    }
-
     @PostMapping("/update-clients")
     public ResponseEntity<ApiResponse<List<String>>> updateClients(
             @RequestBody SignupRequestDTO req) {
@@ -358,87 +329,8 @@ public class KeycloakAdminController {
         rest.exchange(assignUrl, HttpMethod.POST,
                 new HttpEntity<>(List.of(roleResp.getBody()), headers), String.class);
     }
-//    @PostMapping("/staff/create")
-//    @PreAuthorize("hasAnyRole('HOTEL_ADMIN', 'BUS_ADMIN', 'THEATER_ADMIN', 'TAXI_ADMIN')")
-//    public ResponseEntity<ApiResponse<SignupResponseDTO>> createStaff(
-//            @RequestBody StaffCreateRequestDTO req) {
-//        try {
-//            String client = req.getClient(); // e.g. "hotel"
-//            KeycloakConfig config = getKeycloakConfig(client);
-//            String adminToken = tokenService.getAdminToken(client);
-//
-//            // Get counter role from config
-//            String counterRole = clientProperties.getClient(client).getCounterRole();
-//            if (counterRole == null || counterRole.isEmpty()) {
-//                return ResponseEntity.badRequest()
-//                        .body(ApiResponse.error("No counter role configured for client: " + client));
-//            }
-//
-//            HttpHeaders headers = new HttpHeaders();
-//            headers.setBearerAuth(adminToken);
-//            headers.setContentType(MediaType.APPLICATION_JSON);
-//
-//            // Search or create user in Keycloak — same logic as signup
-//            String searchUrl = String.format("%s/admin/realms/%s/users?username=%s",
-//                    config.getServerUrl(), config.getRealm(), req.getUsername());
-//            ResponseEntity<Map[]> searchResp = rest.exchange(searchUrl, HttpMethod.GET,
-//                    new HttpEntity<>(headers), Map[].class);
-//
-//            String kcId;
-//            if (searchResp.getBody() != null && searchResp.getBody().length > 0) {
-//                kcId = (String) searchResp.getBody()[0].get("id");
-//            } else {
-//                Map<String, Object> payload = new HashMap<>();
-//                payload.put("username", req.getUsername());
-//                payload.put("email", req.getEmail());
-//                payload.put("firstName", req.getFirstName());
-//                payload.put("lastName", req.getLastName());
-//                payload.put("enabled", true);
-//
-//                Map<String, Object> cred = new HashMap<>();
-//                cred.put("type", "password");
-//                cred.put("value", req.getPassword());
-//                cred.put("temporary", true); // staff must reset on first login
-//                payload.put("credentials", List.of(cred));
-//
-//                String createUrl = String.format("%s/admin/realms/%s/users",
-//                        config.getServerUrl(), config.getRealm());
-//                rest.exchange(createUrl, HttpMethod.POST,
-//                        new HttpEntity<>(payload, headers), String.class);
-//
-//                searchResp = rest.exchange(searchUrl, HttpMethod.GET,
-//                        new HttpEntity<>(headers), Map[].class);
-//                kcId = (String) searchResp.getBody()[0].get("id");
-//            }
-//
-//            // Assign counter role
-//            assignRealmRole(adminToken, config, kcId, counterRole);
-//
-//            // Save to DB
-//            appUserService.createStaffIfNotExists(req.getUsername(), req.getEmail(),
-//                    req.getFirstName(), req.getLastName(), req.getPassword(), kcId,Set.of(counterRole), req.getPhoneNumber(),
-//                    req.getEntityId(),    // ✅ e.g. hotelId
-//                    req.getEntityType() );
-//            appUserService.assignClient(req.getUsername(), client);
-//
-//            AppUser dbUser = appUserService.findByUsername(req.getUsername())
-//                    .orElseThrow(() -> new RuntimeException("User not found after creation"));
-//
-//            return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(
-//                    "Staff created successfully",
-//                    new SignupResponseDTO(dbUser.getId(), dbUser.getKeycloakId(),
-//                            dbUser.getUsername(), dbUser.getEmail(),dbUser.getRoles(),dbUser.getPhoneNumber(),
-//                            List.copyOf(dbUser.getClients()))
-//            ));
-//
-//        } catch (Exception e) {
-//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-//                    .body(ApiResponse.error("Staff creation failed: " + e.getMessage()));
-//        }
-//    }
-
     @PostMapping("/staff/create")
-    @PreAuthorize("hasAnyRole('HOTEL_ADMIN', 'BUS_ADMIN', 'THEATER_ADMIN', 'TAXI_ADMIN')")
+  //  @PreAuthorize("hasAnyRole('HOTEL_ADMIN', 'BUS_ADMIN', 'THEATER_ADMIN', 'TAXI_ADMIN')")
     public ResponseEntity<ApiResponse<SignupResponseDTO>> createStaff(
             @RequestBody StaffCreateRequestDTO req) {
         try {
@@ -528,6 +420,17 @@ public class KeycloakAdminController {
                     .body(ApiResponse.error("Staff creation failed: " + e.getMessage()));
         }
     }
+
+    @GetMapping("/staff/{entityType}/{entityId}")
+   // @PreAuthorize("hasAnyRole('HOTEL_ADMIN', 'BUS_ADMIN', 'THEATER_ADMIN', 'TAXI_ADMIN')")
+    public ResponseEntity<ApiResponse<List<AppUser>>> getStaffByEntity(
+            @PathVariable String entityType,
+            @PathVariable String entityId) {
+        List<AppUser> staff = appUserService.getStaffByEntity(entityId, entityType);
+        return ResponseEntity.ok(ApiResponse.success("Staff fetched successfully", staff));
+    }
+
+
     // ✅ Step 1 — Send OTP to email
     @PostMapping("/forgot-password/send-otp")
     public ResponseEntity<ApiResponse<String>> sendOtp(@RequestBody ForgotPasswordRequestDTO req) {

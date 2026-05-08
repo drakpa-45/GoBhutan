@@ -161,43 +161,44 @@ public class BookingService {
                     + " with status: " + booking.getStatus());
         }
 
-        //booking is a single object
-        if (booking.getWalletPaymentRef() != null && !booking.getWalletPaymentRef().isBlank()) {
-            throw new RuntimeException("Wallet payment already processed for this booking");
+        boolean isPublicUser = roles.stream()
+                .anyMatch(role -> role.equals("PUBLIC_USER"));
+        if (isPublicUser) {
+            // booking is a single object
+            if (booking.getWalletPaymentRef() != null && !booking.getWalletPaymentRef().isBlank()) {
+                throw new RuntimeException("Wallet payment already processed for this booking");
+            }
+            BigDecimal totalAmount = booking.getTotalAmount();
+
+            ServicePaymentRequest paymentRequest = new ServicePaymentRequest();
+            paymentRequest.setAmount(totalAmount);
+            paymentRequest.setCurrency("BTN");
+            paymentRequest.setServiceName("HOTEL");
+            paymentRequest.setReferenceType("HOTEL_ROOM_BOOKING");
+            paymentRequest.setReferenceId(bookingReference);
+            paymentRequest.setDescription("Hotel room booking payment");
+
+            WalletPaymentResult walletPayment = paymentService.payWithWallet(paymentRequest, userId);
+
+            paymentService.creditServiceSettlement(
+                    walletPayment.getPaymentRef(),
+                    totalAmount,
+                    "HOTEL",
+                    "HOTEL_ROOM_BOOKING",
+                    bookingReference,
+                    "Hotel room booking settlement",
+                    booking.getHotel().getAdminUserId()
+            );
+
+            // persist the payment reference
+            booking.setWalletPaymentRef(walletPayment.getPaymentRef());
         }
-
-        BigDecimal totalAmount = booking.getTotalAmount();
-
-        ServicePaymentRequest paymentRequest = new ServicePaymentRequest();
-        paymentRequest.setAmount(totalAmount);
-        paymentRequest.setCurrency("BTN");
-        paymentRequest.setServiceName("HOTEL");
-        paymentRequest.setReferenceType("HOTEL_ROOM_BOOKING");
-        paymentRequest.setReferenceId(bookingReference);
-        paymentRequest.setDescription("Hotel room booking payment");
-
-        WalletPaymentResult walletPayment = paymentService.payWithWallet(paymentRequest, userId);
-
-        paymentService.creditServiceSettlement(
-                walletPayment.getPaymentRef(),
-                totalAmount,
-                "HOTEL",
-                "HOTEL_ROOM_BOOKING",
-                bookingReference,
-                "Hotel room booking settlement",
-                booking.getHotel().getAdminUserId()
-        );
-
-        // persist the payment reference
-        booking.setWalletPaymentRef(walletPayment.getPaymentRef());
         booking.setStatus(Booking.BookingStatus.CONFIRMED);
-
         // Ensure room exists
         Room room = booking.getRoom();
         if (room == null) {
             throw new RuntimeException("Booking has no associated room");
         }
-
         room.setStatus(Room.RoomStatus.OCCUPIED);
         roomRepo.save(room);
 
