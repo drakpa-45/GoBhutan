@@ -151,6 +151,24 @@ app:
           clientId: taxi-admin-client
           #clientSecret: UpBPEhL6d3k0ZF2qIQ6mQCsf8kpg9mkh
           clientSecret: BUWVwdzkxn04n7nC9YegDgJtKyqaGGCF
+    gas:
+      admin-role: GAS_ADMIN
+      counter-role: GAS_COUNTER
+      release-expired-lock: false
+      jwt:
+        auth:
+          converter:
+            resource-id: public-user-rest-api
+            principle-attribute: preferred_username
+      keycloak:
+        #serverUrl: http://localhost:8084  # Keycloak server URL (dev-only)
+        serverUrl: https://gobhutan.site  # Keycloak server URL (must match token issuer host)
+
+        realm: Go-Bhutan # Keycloak realm
+        admin:
+          clientId: gas-admin-client
+          #clientSecret: F64DeakYEGN3P9d1pMNBDtrDjVDPcig7
+          clientSecret: RT2rQleVgv7eqGUODKsZRVsAGnwPNDPB
 
 # logging
 logging:
