@@ -289,7 +289,7 @@ public class KeycloakAdminController {
         }
     }
 
-    @PostMapping("/update-clients")
+    /*@PostMapping("/update-clients")
     public ResponseEntity<ApiResponse<List<String>>> updateClients(
             @RequestBody SignupRequestDTO req) {
 
@@ -310,6 +310,146 @@ public class KeycloakAdminController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.error("Failed to update clients: " + e.getMessage()));
         }
+    }*/
+
+    @PostMapping("/update-profile")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> updateProfile(
+            @RequestBody UpdateClientRequestDTO req) {
+        try {
+            // ✅ Check user exists
+            AppUser existingUser = appUserService.findByUsername(req.getUsername())
+                    .orElseThrow(() -> new RuntimeException("User not found: " + req.getUsername()));
+
+            String kcId = existingUser.getKeycloakId();
+
+            // ✅ Get admin token from first existing client
+            List<String> currentClients = appUserService.getClientsForUser(req.getUsername());
+            if (currentClients == null || currentClients.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("User has no assigned clients"));
+            }
+            KeycloakConfig config = getKeycloakConfig(currentClients.get(0));
+            String adminToken = tokenService.getAdminToken(currentClients.get(0));
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(adminToken);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            // ✅ Update email in Keycloak
+            if (req.getEmail() != null && !req.getEmail().isEmpty()) {
+                Map<String, Object> kcPayload = new HashMap<>();
+                kcPayload.put("email", req.getEmail());
+                kcPayload.put("emailVerified", false);
+
+                String updateUrl = String.format("%s/admin/realms/%s/users/%s",
+                        config.getServerUrl(), config.getRealm(), kcId);
+                rest.exchange(updateUrl, HttpMethod.PUT,
+                        new HttpEntity<>(kcPayload, headers), String.class);
+            }
+
+            Set<String> newClients = req.getClients() != null
+                    ? new HashSet<>(req.getClients()) : new HashSet<>();
+
+            // ✅ Remove roles in Keycloak for deselected clients
+            Set<String> removedClients = new HashSet<>(currentClients);
+            removedClients.removeAll(newClients);
+
+            System.out.println("Clients to remove: " + removedClients); // debug
+
+            for (String removedClient : removedClients) {
+                String roleToRemove = clientProperties.getClient(removedClient).getAdminRole();
+                System.out.println("Removing role: " + roleToRemove + " for client: " + removedClient); // debug
+
+                if (roleToRemove != null && !roleToRemove.isEmpty()) {
+                    KeycloakConfig removedConfig = getKeycloakConfig(removedClient);
+                    String removedAdminToken = tokenService.getAdminToken(removedClient);
+                    removeRealmRole(removedAdminToken, removedConfig, kcId, roleToRemove); // ✅ no silent catch
+                }
+            }
+
+            // ✅ Assign roles in Keycloak for newly added clients
+            Set<String> addedClients = new HashSet<>(newClients);
+            addedClients.removeAll(currentClients); // clients that were added
+
+            Set<String> finalRoles = new HashSet<>();
+
+            // Keep roles for retained clients
+            for (String client : newClients) {
+                String adminRole = clientProperties.getClient(client).getAdminRole();
+                if (adminRole != null && !adminRole.isEmpty()) {
+                    if (addedClients.contains(client)) {
+                        // newly added — assign in Keycloak
+                        KeycloakConfig clientConfig = getKeycloakConfig(client);
+                        String clientAdminToken = tokenService.getAdminToken(client);
+                        assignRealmRole(clientAdminToken, clientConfig, kcId, adminRole);
+                    }
+                    finalRoles.add(adminRole); // collect all final roles
+                }
+            }
+
+            // ✅ Update clients in DB
+            appUserService.updateClients(req.getUsername(), newClients);
+
+            // ✅ Replace roles in DB (not merge)
+            appUserService.replaceRoles(req.getUsername(), finalRoles);
+
+            // ✅ Update email and phone in DB
+            appUserService.updateProfile(
+                    req.getUsername(),
+                    req.getEmail(),
+                    req.getPhoneNumber(),
+                    null  // clients already updated above
+            );
+
+            // ✅ Fetch updated user
+            AppUser updatedUser = appUserService.findByUsername(req.getUsername())
+                    .orElseThrow(() -> new RuntimeException("User not found after update"));
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("username", updatedUser.getUsername());
+            data.put("email", updatedUser.getEmail());
+            data.put("phoneNumber", updatedUser.getPhoneNumber());
+            data.put("clients", new ArrayList<>(updatedUser.getClients()));
+            data.put("roles", new ArrayList<>(updatedUser.getRoles()));
+
+            return ResponseEntity.ok(ApiResponse.success("Profile updated successfully", data));
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Update failed: " + e.getMessage()));
+        }
+    }
+
+    private void removeRealmRole(String adminToken, KeycloakConfig config, String kcId, String roleName) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(adminToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        // Fetch role representation
+        String roleUrl = String.format("%s/admin/realms/%s/roles/%s",
+                config.getServerUrl(), config.getRealm(), roleName);
+        ResponseEntity<Map> roleResp = rest.exchange(roleUrl, HttpMethod.GET,
+                new HttpEntity<>(headers), Map.class);
+
+        if (roleResp.getBody() == null) {
+            System.err.println("Role not found in Keycloak: " + roleName);
+            return;
+        }
+
+        // ✅ DELETE role mapping
+        String removeUrl = String.format("%s/admin/realms/%s/users/%s/role-mappings/realm",
+                config.getServerUrl(), config.getRealm(), kcId);
+
+        // Must send role as body in DELETE request
+        HttpEntity<List<Map>> deleteEntity = new HttpEntity<>(
+                List.of(roleResp.getBody()), headers);
+
+        rest.exchange(removeUrl, HttpMethod.DELETE, deleteEntity, String.class);
+
+        System.out.println("✅ Removed role " + roleName + " from Keycloak user " + kcId);
     }
 
     private void assignRealmRole(String adminToken, KeycloakConfig config, String kcId, String roleName) {
