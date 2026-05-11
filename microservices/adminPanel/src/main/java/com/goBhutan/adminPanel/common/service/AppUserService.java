@@ -109,6 +109,32 @@ public class AppUserService {
     }
 
     @Transactional
+    public AppUser updateProfile(String username, String email, int phoneNumber, Set<String> newClients) {
+        AppUser user = repo.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+
+        if (email != null && !email.isEmpty()) {
+            user.setEmail(email);
+        }
+        if (phoneNumber != 0) {
+            user.setPhoneNumber(phoneNumber);
+        }
+        if (newClients != null && !newClients.isEmpty()) {
+            user.setClients(new HashSet<>(newClients));
+        }
+
+        return repo.save(user);
+    }
+
+    @Transactional
+    public void replaceRoles(String username, Set<String> newRoles) {
+        AppUser user = repo.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+        user.setRoles(new HashSet<>(newRoles));  // ✅ replace, not merge
+        repo.save(user);
+    }
+
+    @Transactional
     public Optional<AppUser> findByUsername(String username) {
         return repo.findByUsername(username);
     }
