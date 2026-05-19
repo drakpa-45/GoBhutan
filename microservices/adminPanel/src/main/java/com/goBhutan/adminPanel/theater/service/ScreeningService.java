@@ -3,15 +3,22 @@ package com.goBhutan.adminPanel.theater.service;
 import com.goBhutan.adminPanel.theater.dto.screening.ScreeningDTO;
 import com.goBhutan.adminPanel.theater.entity.Hall;
 import com.goBhutan.adminPanel.theater.entity.Screening;
-import com.goBhutan.adminPanel.theater.entity.Theater;
 import com.goBhutan.adminPanel.theater.repository.HallRepository;
 import com.goBhutan.adminPanel.theater.repository.ScreeningRepository;
 import com.goBhutan.adminPanel.theater.repository.TheaterRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,7 +30,11 @@ public class ScreeningService {
     private final TheaterRepository theaterRepository;
     private final HallRepository hallRepository;
 
-    public ScreeningDTO createScreening(ScreeningDTO dto) {
+    @Value("${file.upload.directory:/opt/uploads/movie/}")
+    private String uploadDirectory;
+
+    @Transactional
+    public ScreeningDTO createScreening(ScreeningDTO dto, MultipartFile posterImage) {
        /* Theater theater = theaterRepository.findById(dto.getTheaterId())
                 .orElseThrow(() -> new IllegalArgumentException("Theater not found"));*/
         Hall hall = hallRepository.findById(dto.getHallId())
@@ -38,8 +49,43 @@ public class ScreeningService {
         screening.setHall(hall);
         screening.setIsActive(true);
 
+        if (posterImage != null && !posterImage.isEmpty()) {
+            try {
+                screening.setPosterImage(savePosterImage(posterImage, hall.getId()));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         Screening saved = screeningRepository.save(screening);
         return mapToDTO(saved);
+    }
+
+    private String savePosterImage(MultipartFile posterImage, Long hallId) throws IOException {
+        // Create upload directory if it doesn't exist
+        Path uploadPath = Paths.get(uploadDirectory);
+        if (!Files.exists(uploadPath)) {
+            Files.createDirectories(uploadPath);
+        }
+
+        // Generate unique filename
+        String originalFilename = posterImage.getOriginalFilename();
+        String fileExtension = "";
+        if (originalFilename != null && originalFilename.contains(".")) {
+            fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
+        }
+        String uniqueFilename = UUID.randomUUID().toString() + fileExtension;
+
+        // Create hall-specific subdirectory and save file
+        Path posterDir = uploadPath.resolve(String.valueOf(hallId));
+        if (!Files.exists(posterDir)) {
+            Files.createDirectories(posterDir);
+        }
+
+        Files.copy(posterImage.getInputStream(), posterDir.resolve(uniqueFilename), StandardCopyOption.REPLACE_EXISTING);
+
+        // Return relative path for database storage
+        return uploadDirectory + "/" + hallId + "/" + uniqueFilename;
     }
 
     public ScreeningDTO getScreening(Long id) {

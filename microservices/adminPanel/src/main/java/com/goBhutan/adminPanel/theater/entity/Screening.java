@@ -32,6 +32,10 @@ public class Screening {
 
     @Column(name = "trailer_link")
     private String trailerLink;
+
+    @Column(name = "poster_image")
+    private String posterImage;
+
 /*
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "theater_id", nullable = false)
