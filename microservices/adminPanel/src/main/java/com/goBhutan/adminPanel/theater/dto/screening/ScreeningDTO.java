@@ -18,6 +18,7 @@ public class ScreeningDTO {
     private LocalTime startTime;
     private String trailerLink;
     private String theaterName;
+    private String posterImage;
     private Long hallId;
     private String hallName;
     private Boolean isActive;
