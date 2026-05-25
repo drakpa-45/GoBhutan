@@ -5,6 +5,7 @@ import com.goBhutan.adminPanel.theater.dto.screening.ScreeningDTO;
 import com.goBhutan.adminPanel.theater.entity.Screening;
 import com.goBhutan.adminPanel.theater.service.ScreeningService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,10 +19,24 @@ public class ScreeningController {
 
     private final ScreeningService screeningService;
 
-    @PostMapping
+/*    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<ScreeningDTO>> createScreening(@RequestBody ScreeningDTO dto,
          @RequestPart(required = false, name = "posterImages") MultipartFile posterImages) {
         return ResponseEntity.ok(ApiResponse.success("Screening created", screeningService.createScreening(dto,posterImages)));
+    }*/
+
+
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<ScreeningDTO>> createScreening(
+            @RequestPart("dto") ScreeningDTO dto,
+            @RequestPart(value = "posterImages", required = false) MultipartFile posterImages
+    ) {
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "Screening created",
+                        screeningService.createScreening(dto, posterImages)
+                )
+        );
     }
 
     @GetMapping("/{id}")

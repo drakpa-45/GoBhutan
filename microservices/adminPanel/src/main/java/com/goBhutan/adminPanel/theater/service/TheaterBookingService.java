@@ -112,6 +112,7 @@ public class TheaterBookingService {
             ticket.setCidOrPassport(t.getCidOrPassport());
             ticket.setPhoneNumber(t.getPhoneNumber());
             ticket.setEmail(t.getEmail());
+            ticket.setScreening(screening);
 
             ticketsToSave.add(ticket);
 
@@ -124,7 +125,9 @@ public class TheaterBookingService {
                     t.getCidOrPassport(),
                     t.getPhoneNumber(),
                     t.getEmail(),
-                    ticket.getCreatedAt()
+                    ticket.getCreatedAt(),
+                    screening.getId(),
+                    screening.getMovieName()
             ));
         }
 
@@ -151,6 +154,7 @@ public class TheaterBookingService {
         return tickets.stream()
                 .map(ticket -> {
                     Seat seat = ticket.getSeat();
+                    Screening screening = ticket.getScreening();
                     return new TicketResponseDTO(
                             ticket.getTicketNumber(),
                             seat.getId(),
@@ -160,7 +164,9 @@ public class TheaterBookingService {
                             ticket.getCidOrPassport(),
                             ticket.getPhoneNumber(),
                             ticket.getEmail(),
-                            ticket.getCreatedAt()
+                            ticket.getCreatedAt(),
+                            screening.getId(),
+                            screening.getMovieName()
                     );
                 })
                 .collect(Collectors.toList());
