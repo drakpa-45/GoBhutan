@@ -20,6 +20,7 @@ public class BusTicketResponse {
     private LocalDateTime arrivalTime;
     private Integer seatNumber;
     private String seatLabel;
+    private String applicantName;
     private String applicantCid;
     private String applicantMobile;
     private String applicantEmail;

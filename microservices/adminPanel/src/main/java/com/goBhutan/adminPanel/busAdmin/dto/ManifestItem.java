@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 public class ManifestItem {
     private Integer seatNumber;
     private String seatLabel;
+    private String name;
     private String cid;
     private String mobile;
     private String email;

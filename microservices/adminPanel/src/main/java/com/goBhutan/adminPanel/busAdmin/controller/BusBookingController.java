@@ -34,7 +34,8 @@ public class BusBookingController {
                 req.getScheduleId(),
                 req.getSeatNumbers(),
                 userId,
-                req.getApplicantCid(),
+                req.getApplicantCids(),
+                req.getApplicantNames(),
                 req.getApplicantMobile(),
                 req.getApplicantEmail());
 
@@ -66,7 +67,8 @@ public class BusBookingController {
                 req.getScheduleId(),
                 req.getSeatNumbers(),
                 adminUserId,
-                req.getApplicantCid(),
+                req.getApplicantCids(),
+                req.getApplicantNames(),
                 req.getApplicantMobile(),
                 req.getApplicantEmail());
 

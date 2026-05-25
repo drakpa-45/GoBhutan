@@ -64,6 +64,7 @@ public class TicketService {
                 .arrivalTime(booking.getSchedule().getArrivalTime())
                 .seatNumber(booking.getSeatNumber())
                 .seatLabel(booking.getSeatLabel())
+                .applicantName(booking.getApplicantName())
                 .applicantCid(booking.getApplicantCid())
                 .applicantMobile(booking.getApplicantMobile())
                 .applicantEmail(booking.getApplicantEmail())

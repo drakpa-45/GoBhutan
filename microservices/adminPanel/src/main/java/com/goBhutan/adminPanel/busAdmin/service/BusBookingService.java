@@ -64,7 +64,8 @@ public class BusBookingService {
             Long scheduleId,
             List<Integer> seatNumbers,
             String userId,
-            String cid,
+            List<String> cids,
+            List<String> names,
             String mobile,
             String email
     ) {
@@ -74,6 +75,8 @@ public class BusBookingService {
 
         if (new HashSet<>(seatNumbers).size() != seatNumbers.size())
             throw new RuntimeException("Duplicate seat numbers selected");
+
+        validatePassengerDetails(seatNumbers, cids, names);
 
         LocalDateTime now = LocalDateTime.now();
 
@@ -125,7 +128,8 @@ public class BusBookingService {
             }
 
             booking.setSeatLabel(seatLabel);
-            booking.setApplicantCid(cid);
+            booking.setApplicantCid(cids.get(i));
+            booking.setApplicantName(names.get(i));
             booking.setApplicantMobile(mobile);
             booking.setApplicantEmail(email);
 
@@ -153,7 +157,8 @@ public class BusBookingService {
             Long scheduleId,
             List<Integer> seatNumbers,
             String adminUserId,
-            String cid,
+            List<String> cids,
+            List<String> names,
             String mobile,
             String email
     ) {
@@ -163,6 +168,8 @@ public class BusBookingService {
 
         if (new HashSet<>(seatNumbers).size() != seatNumbers.size())
             throw new RuntimeException("Duplicate seat numbers selected");
+
+        validatePassengerDetails(seatNumbers, cids, names);
 
         LocalDateTime now = LocalDateTime.now();
 
@@ -182,7 +189,8 @@ public class BusBookingService {
 
         List<SeatBooking> bookingList = new ArrayList<>();
 
-        for (Integer seatNumber : seatNumbers) {
+        for (int i = 0; i < seatNumbers.size(); i++) {
+            Integer seatNumber = seatNumbers.get(i);
             validateSeatNumber(seatNumber, bus.getTotalSeats());
             String seatLabel = getSeatLabel(bus, seatNumber);
 
@@ -207,7 +215,8 @@ public class BusBookingService {
             }
 
             booking.setSeatLabel(seatLabel);
-            booking.setApplicantCid(cid);
+            booking.setApplicantCid(cids.get(i));
+            booking.setApplicantName(names.get(i));
             booking.setApplicantMobile(mobile);
             booking.setApplicantEmail(email);
             booking.setUserId(adminUserId);
@@ -759,6 +768,7 @@ public class BusBookingService {
                 .map(b -> new ManifestItem(
                         b.getSeatNumber(),
                         getSeatLabel(bus, b.getSeatNumber()),
+                        b.getApplicantName(),
                         b.getApplicantCid(),
                         b.getApplicantMobile(),
                         b.getApplicantEmail(),
@@ -780,6 +790,15 @@ public class BusBookingService {
     private void validateSeatNumber(Integer seatNumber, Integer totalSeats) {
         if (seatNumber == null || seatNumber < 1 || totalSeats == null || seatNumber > totalSeats) {
             throw new RuntimeException("Invalid seat number: " + seatNumber);
+        }
+    }
+
+    private void validatePassengerDetails(List<Integer> seatNumbers, List<String> cids, List<String> names) {
+        if (cids == null || cids.size() != seatNumbers.size()) {
+            throw new RuntimeException("Applicant CID count must match selected seat count");
+        }
+        if (names == null || names.size() != seatNumbers.size()) {
+            throw new RuntimeException("Applicant name count must match selected seat count");
         }
     }
 
