@@ -28,6 +28,9 @@ public class SeatBooking {
     @Column(name = "applicant_cid", nullable = false)
     private String applicantCid;
 
+    @Column(name = "applicant_name")
+    private String applicantName;
+
     @Column(name = "applicant_mobile")
     private String applicantMobile;
 

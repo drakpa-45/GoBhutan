@@ -73,11 +73,12 @@ public class BusAppController {
     public ResponseEntity<?> lockSeats(@RequestBody LockSeatRequest req) {
         String userId = currentUserId();
 
-        List<SeatBooking> bookings = bookingService.lockSeats(
+        List<SeatBooking> bookings = bookingService.lockSeats(  
                 req.getScheduleId(),
                 req.getSeatNumbers(),
                 userId,
-                req.getApplicantCid(),
+                req.getApplicantCids(),
+                req.getApplicantNames(),
                 req.getApplicantMobile(),
                 req.getApplicantEmail());
 
