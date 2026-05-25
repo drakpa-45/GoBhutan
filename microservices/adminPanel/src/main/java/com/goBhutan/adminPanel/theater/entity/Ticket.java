@@ -44,4 +44,9 @@ public class Ticket {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
+
+    // ✅ Direct FK to Screening — avoids joining through booking every time
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "screening_id", nullable = false)
+    private Screening screening;
 }
