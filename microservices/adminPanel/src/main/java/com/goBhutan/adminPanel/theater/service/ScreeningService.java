@@ -124,6 +124,7 @@ public class ScreeningService {
         dto.setScreeningDate(screening.getScreeningDate());
         dto.setStartTime(screening.getStartTime());
         dto.setTrailerLink(screening.getTrailerLink());
+        dto.setPosterImage(screening.getPosterImage());
     //    dto.setTheaterId(screening.getTheater().getId());
        // dto.setTheaterName(screening.getTheater().getName());
         dto.setHallId(screening.getHall().getId());
