@@ -12,6 +12,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/gas-delivery")
 @CrossOrigin(origins = "*", maxAge = 3600)
@@ -26,6 +28,12 @@ public class GasDeliveryController {
         return ResponseEntity.ok(ApiResponse.success(
                 "Gas delivery request created successfully",
                 gasDeliveryService.create(request, currentUserId())));
+    }
+
+    @GetMapping({ "/" })
+    public ResponseEntity<ApiResponse<List<GasDeliveryResponse>>> getGasDeliveries() {
+        return ResponseEntity.ok(ApiResponse.success(
+                gasDeliveryService.getAll()));
     }
 
     @PatchMapping("/{id}/status")

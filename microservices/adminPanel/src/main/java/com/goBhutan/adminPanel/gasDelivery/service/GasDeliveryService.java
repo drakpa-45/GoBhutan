@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -55,6 +56,12 @@ public class GasDeliveryService {
         });
 
         return toResponse(gasDeliveryDtlsRepository.save(delivery));
+    }
+
+    public List<GasDeliveryResponse> getAll() {
+        return gasDeliveryDtlsRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public GasDeliveryResponse updateStatus(Long id, GasDeliveryAdminStatusRequest request, String adminUserId) {
