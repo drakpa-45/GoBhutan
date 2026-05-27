@@ -19,4 +19,6 @@ public class TicketResponseDTO {
     private String phoneNumber;
     private String email;
     private Instant bookedAt;
+    private Long screeningId;
+    private String screeningName;
 }

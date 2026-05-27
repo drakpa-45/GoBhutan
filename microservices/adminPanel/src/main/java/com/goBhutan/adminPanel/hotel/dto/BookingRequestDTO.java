@@ -23,7 +23,7 @@ public class BookingRequestDTO {
     private Integer guestCount;
     private BigDecimal totalAmount;
 
-    // 🔑 New: list of guests
+    // list of guests
     private List<GuestDTO> guests;
 
     // Getters and Setters

@@ -30,7 +30,7 @@ public class ScreeningService {
     private final TheaterRepository theaterRepository;
     private final HallRepository hallRepository;
 
-    @Value("${file.upload.directory:/opt/uploads/movie/}")
+    @Value("${file.upload.directory:/opt/uploads/movie}")
     private String uploadDirectory;
 
     @Transactional
@@ -95,8 +95,9 @@ public class ScreeningService {
     }
 
     public List<ScreeningDTO> getScreeningsByHall(Long hallId) {
-        return screeningRepository.findByHallIdOrderByScreeningDateAscStartTimeAsc(hallId)
+        List<ScreeningDTO> screeningDTOList = screeningRepository.findByHallIdOrderByScreeningDateAscStartTimeAsc(hallId)
                 .stream().map(this::mapToDTO).collect(Collectors.toList());
+        return screeningDTOList;
     }
 
     public ScreeningDTO updateScreening(Long id, ScreeningDTO dto) {
