@@ -107,7 +107,7 @@ public class SeatController {
     }
 
     @PostMapping("/configure")
-    @Operation(summary = "Configure/regenerate seat layout for a hall")
+    @Operation(summary = "Configure or reconfigure (edit) seat layout for a hall — replaces existing layout")
     public ResponseEntity<ApiResponse<SeatLayoutResponseDTO>> configureSeats(
             @Valid @RequestBody SeatLayoutRequest request
     ) {

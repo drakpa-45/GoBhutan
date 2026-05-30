@@ -36,7 +36,7 @@ public class GasDeliveryController {
                 gasDeliveryService.getAll()));
     }
 
-    @PatchMapping("/{id}/status")
+    @PutMapping("/{id}/status")
     public ResponseEntity<ApiResponse<GasDeliveryResponse>> updateGasDeliveryStatus(
             @PathVariable Long id,
             @Valid @RequestBody GasDeliveryAdminStatusRequest request) {
