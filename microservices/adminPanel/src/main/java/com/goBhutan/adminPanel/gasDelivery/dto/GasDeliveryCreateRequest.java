@@ -19,6 +19,11 @@ public class GasDeliveryCreateRequest {
     @NotBlank(message = "Mobile Number is required")
     private String mobileNumber;
 
+    @NotBlank(message = "cid Number is required")
+    private String cidNumber;
+
+    private String fullName;
+
     private String customerRemarks;
 
     @Valid
