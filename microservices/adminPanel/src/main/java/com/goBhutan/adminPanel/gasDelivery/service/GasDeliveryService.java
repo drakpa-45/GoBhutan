@@ -33,7 +33,7 @@ public class GasDeliveryService {
 
         GasDeliveryDtls delivery = new GasDeliveryDtls();
         delivery.setMobileNumber(request.getMobileNumber().trim());
-        delivery.setCidNumber(request.getCidNumber().trim());
+        delivery.setCidNumber(request.getCidNumber());
         delivery.setFullName(request.getFullName());
         delivery.setUserId(userId);
         delivery.setStatus(GasDeliveryStatus.PENDING);
