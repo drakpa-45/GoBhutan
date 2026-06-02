@@ -7,6 +7,8 @@ import java.util.List;
 
 public record GasDeliveryResponse(
         Long id,
+        String cidNumber,
+        String fullName,
         String mobileNumber,
         String userId,
         GasDeliveryStatus status,

@@ -174,6 +174,8 @@ public class GasDeliveryService {
         return new GasDeliveryResponse(
                 delivery.getId(),
                 delivery.getMobileNumber(),
+                delivery.getCidNumber(),
+                delivery.getFullName(),
                 delivery.getUserId(),
                 delivery.getStatus(),
                 delivery.getCustomerRemarks(),

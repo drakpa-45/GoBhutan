@@ -28,6 +28,13 @@ public class GasDeliveryDtls {
     @Column(name = "mobile_number", nullable = false)
     private String mobileNumber;
 
+    @NotBlank(message = "cid Number is required")
+    @Column(name = "cid_number", nullable = false)
+    private String cidNumber;
+
+    @Column(name = "full_name")
+    private String fullName;
+
     @Column(name = "user_id", nullable = false)
     private String userId;
 
