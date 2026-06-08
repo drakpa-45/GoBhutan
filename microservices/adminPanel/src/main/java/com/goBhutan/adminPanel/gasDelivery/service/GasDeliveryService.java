@@ -35,6 +35,7 @@ public class GasDeliveryService {
         delivery.setMobileNumber(request.getMobileNumber().trim());
         delivery.setCidNumber(request.getCidNumber());
         delivery.setFullName(request.getFullName());
+        delivery.setExpectedDeliveryTime(request.getExpectedDeliveryTime());
         delivery.setUserId(userId);
         delivery.setStatus(GasDeliveryStatus.PENDING);
         delivery.setCustomerRemarks(trimToNull(request.getCustomerRemarks()));
@@ -178,6 +179,7 @@ public class GasDeliveryService {
                 delivery.getMobileNumber(),
                 delivery.getCidNumber(),
                 delivery.getFullName(),
+                delivery.getExpectedDeliveryTime(),
                 delivery.getUserId(),
                 delivery.getStatus(),
                 delivery.getCustomerRemarks(),

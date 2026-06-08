@@ -10,6 +10,7 @@ public record GasDeliveryResponse(
         String mobileNumber,
         String cidNumber,
         String fullName,
+        String expectedDeliveryTime,
         String userId,
         GasDeliveryStatus status,
         String customerRemarks,
