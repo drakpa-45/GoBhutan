@@ -35,6 +35,9 @@ public class GasDeliveryDtls {
     @Column(name = "full_name")
     private String fullName;
 
+    @Column(name = "expected_delivery_time")
+    private String expectedDeliveryTime;
+
     @Column(name = "user_id", nullable = false)
     private String userId;
 

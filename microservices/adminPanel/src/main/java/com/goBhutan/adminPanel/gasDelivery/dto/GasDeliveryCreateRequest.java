@@ -23,6 +23,8 @@ public class GasDeliveryCreateRequest {
 
     private String fullName;
 
+    private String expectedDeliveryTime;
+
     private String customerRemarks;
 
     @Valid
