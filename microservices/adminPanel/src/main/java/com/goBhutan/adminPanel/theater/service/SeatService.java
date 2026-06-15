@@ -89,16 +89,13 @@ public class SeatService {
     public SeatLayoutResponseDTO configureSeats(SeatLayoutRequest request) {
         log.info("Configuring seats for hall ID: {}", request.getHallId());
 
-        // Validate hall exists
         Hall hall = hallRepository.findById(request.getHallId())
                 .orElseThrow(() -> new IllegalArgumentException("Hall not found with ID: " + request.getHallId()));
 
-        // Check if hall is active
         if (!hall.getIsActive()) {
             throw new IllegalArgumentException("Cannot configure seats for inactive hall");
         }
 
-        // Get default AVAILABLE status
         SeatStatus availableStatus = seatStatusRepository.findByStatusNameIgnoreCase("AVAILABLE")
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Default seat status 'AVAILABLE' not found. Please initialize seat statuses first."));
@@ -111,21 +108,19 @@ public class SeatService {
             }
         }
 
-        // Delete existing seats
-        log.info("Removing existing {} seats from hall {}", hall.getSeats().size(), hall.getId());
-      //  seatRepository.deleteByHallId(hall.getId());
-      //  hall.getSeats().clear();
+        // ✅ Delete existing seats — makes this safe to call for both create AND edit
+        if (!hall.getSeats().isEmpty()) {
+            log.info("Removing existing {} seats from hall {}", hall.getSeats().size(), hall.getId());
+            seatRepository.deleteAllByHallId(hall.getId());
+            hall.getSeats().clear();
+        }
 
         int totalSeats = 0;
 
-        // Create new seat layout
         for (SeatLayoutRequest.RowLayout row : request.getRows()) {
-
-            // Fetch the SeatClassEntity from DB
             SeatClass seatClass = seatClassRepository.findById(row.getSeatClassId())
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "Seat class not found with ID: " + row.getSeatClassId()
-                    ));
+                            "Seat class not found with ID: " + row.getSeatClassId()));
 
             for (int i = 1; i <= row.getSeatCount(); i++) {
                 Seat seat = new Seat();
@@ -143,7 +138,6 @@ public class SeatService {
             }
         }
 
-        // Update hall total seats
         hall.setTotalSeats(totalSeats);
         hall.setUpdatedAt(Instant.now());
 
