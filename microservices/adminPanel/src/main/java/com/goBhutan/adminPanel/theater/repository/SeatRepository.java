@@ -66,7 +66,7 @@ public interface SeatRepository extends JpaRepository<Seat, Long> {
     """)
     Optional<Seat> findByIdWithHallAndClass(@Param("id") Long id);
 
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("DELETE FROM Seat s WHERE s.hall.id = :hallId")
     void deleteAllByHallId(@Param("hallId") Long hallId);
 }
