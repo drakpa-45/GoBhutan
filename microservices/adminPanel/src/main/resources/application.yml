@@ -201,6 +201,8 @@ springdoc:
       packages-to-scan: com.goBhutan.adminPanel.theater.controller
     - group: gas-admin
       packages-to-scan: com.goBhutan.adminPanel.gasDelivery.controller
+    - group: taxi
+      packages-to-scan: com.goBhutan.adminPanel.taxi.controller
     
 
 file:
