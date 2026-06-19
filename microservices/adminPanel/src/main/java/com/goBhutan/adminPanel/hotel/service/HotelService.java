@@ -313,4 +313,12 @@ public class HotelService {
     public void deleteHotel(Long id) {
         hotelRepository.deleteById(id);
     }
+
+    public void deactivateHotel(Long id) {
+        Hotel hotel = hotelRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Hotel not found with id: " + id));
+        hotel.setIsActive(false);
+        hotel.setUpdatedAt(LocalDateTime.now());
+        hotelRepository.save(hotel);
+    }
 }

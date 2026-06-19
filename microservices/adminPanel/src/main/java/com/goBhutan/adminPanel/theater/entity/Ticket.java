@@ -23,7 +23,7 @@ public class Ticket {
     private TheaterBooking booking;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "seat_id", nullable = false)
+    @JoinColumn(name = "seat_id", nullable = true, foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private Seat seat;
 
     @Column(name = "ticket_number", nullable = false, unique = true)

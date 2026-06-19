@@ -3,6 +3,7 @@ package com.goBhutan.adminPanel.hotel.controller;
 import com.goBhutan.adminPanel.common.dto.ApiResponse;
 import com.goBhutan.adminPanel.hotel.dto.BookingRequestDTO;
 import com.goBhutan.adminPanel.hotel.dto.BookingSummaryDTO;
+import com.goBhutan.adminPanel.hotel.dto.BookingWithHotelDTO;
 import com.goBhutan.adminPanel.hotel.entity.Booking;
 import com.goBhutan.adminPanel.hotel.repository.BookingSummary;
 import jakarta.validation.Valid;
@@ -24,6 +25,13 @@ public class BookingController {
 // @PreAuthorize("hasRole('client_admin')")
     public ApiResponse<List<BookingSummary>> getBookingsByHotel(@PathVariable Long hotelId) {
         List<BookingSummary> bookings = bookingService.getBookingSummariesByHotel(hotelId);
+        return new ApiResponse<>(true, "Bookings fetched successfully", bookings);
+    }
+
+    @GetMapping("/hotel/allBookings")
+// @PreAuthorize("hasRole('client_admin')")
+    public ApiResponse<List<BookingWithHotelDTO>> getBookingsByAdminUserId() {
+        List<BookingWithHotelDTO> bookings = bookingService.getBookingsByAdminUserId();
         return new ApiResponse<>(true, "Bookings fetched successfully", bookings);
     }
 

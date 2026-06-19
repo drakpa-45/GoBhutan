@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 
 import com.goBhutan.adminPanel.hotel.dto.BookingRequestDTO;
 import com.goBhutan.adminPanel.hotel.dto.BookingSummaryDTO;
+import com.goBhutan.adminPanel.hotel.dto.BookingWithHotelDTO;
 import com.goBhutan.adminPanel.hotel.entity.Guest;
 import com.goBhutan.adminPanel.hotel.entity.Hotel;
 import com.goBhutan.adminPanel.hotel.entity.Room;
@@ -49,6 +50,22 @@ public class BookingService {
         return bookingRepo.findBookingSummariesByHotelId(hotelId);
     }
 
+
+    public List<BookingWithHotelDTO> getBookingsByAdminUserId() {
+        // 🔹 Extract Keycloak userId from token
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String userId;
+
+        if (principal instanceof Jwt jwt) {
+            userId = jwt.getSubject();
+        } else if (principal instanceof String str) {
+            userId = str;
+        } else {
+            throw new RuntimeException("Unsupported principal type: " + principal.getClass());
+        }
+
+        return bookingRepo.findAllBookingsWithHotelByAdminUserId(userId);
+    }
 
     public Booking getBooking(Long id) {
         return bookingRepo.findById(id).orElseThrow(() -> new RuntimeException("Booking not found"));
