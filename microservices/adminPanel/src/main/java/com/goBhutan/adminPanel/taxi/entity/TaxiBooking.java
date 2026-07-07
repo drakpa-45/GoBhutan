@@ -30,7 +30,7 @@ public class TaxiBooking {
 
     /** The app user making the booking (the payer) */
     @Column(name = "passenger_id", nullable = false)
-    private Long passengerId;
+    private String passengerId;
 
     /** Name of the person who will actually ride (may be same as passenger) */
     @Column(name = "rider_name")
@@ -88,7 +88,7 @@ public class TaxiBooking {
     // ── Driver ───────────────────────────────────────────────────────────────
 
     @Column(name = "driver_id")
-    private Long driverId;
+    private String driverId;
 
     // ── Scheduling (Reserved only) ────────────────────────────────────────────
 

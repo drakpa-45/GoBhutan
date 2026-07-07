@@ -35,7 +35,7 @@ public class TaxiBookingController {
     @PatchMapping("/{id}/accept")
     public ResponseEntity<BookingResponse> acceptBooking(
             @PathVariable Long id,
-            @RequestParam Long driverId) {
+            @RequestParam String driverId) {
         return ResponseEntity.ok(bookingService.startTrip(id, driverId));
     }
 
@@ -43,7 +43,7 @@ public class TaxiBookingController {
     @PatchMapping("/{id}/start")
     public ResponseEntity<BookingResponse> startTrip(
             @PathVariable Long id,
-            @RequestParam Long driverId) {
+            @RequestParam String driverId) {
         return ResponseEntity.ok(bookingService.startTrip(id, driverId));
     }
 

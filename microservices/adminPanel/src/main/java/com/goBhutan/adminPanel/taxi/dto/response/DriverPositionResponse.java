@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 /** Returned to passenger app — shows driver on map */
 @Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
 public class DriverPositionResponse {
-    private Long        driverId;
+    private String        driverId;
     private BigDecimal  latitude;
     private BigDecimal  longitude;
     private BigDecimal  bearing;

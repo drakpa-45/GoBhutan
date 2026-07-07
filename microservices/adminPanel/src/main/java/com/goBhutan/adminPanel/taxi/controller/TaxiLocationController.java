@@ -1,6 +1,7 @@
 package com.goBhutan.adminPanel.taxi.controller;
 
 
+import com.goBhutan.adminPanel.taxi.dto.request.InitialLocationRequest;
 import com.goBhutan.adminPanel.taxi.dto.request.LocationPingRequest;
 import com.goBhutan.adminPanel.taxi.dto.response.DriverPositionResponse;
 import com.goBhutan.adminPanel.taxi.dto.response.NearbyDriverResponse;
@@ -16,13 +17,43 @@ import java.util.List;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/api/yaya/location")
+@RequestMapping("/taxi/location")
 @RequiredArgsConstructor
 public class TaxiLocationController {
 
     private final TaxiLocationTrackingService trackingService;
 
     // ── Driver → Server ───────────────────────────────────────────────────────
+
+    /**
+     * POST /taxi/location/driver/{driverId}/initial
+     * Driver sends their location once when they first open the app / go online.
+     * Called BEFORE the 30-second ping cycle starts.
+     * Sets isOnline = true and stores the first known position.
+     */
+    /**
+     * POST /taxi/location/driver/initial
+     * Driver sends their location once when they first open the app.
+     * Called BEFORE the 30-second ping cycle starts.
+     *
+     * Body: { "driverId": 1, "latitude": 27.46, "longitude": 89.64, "bearing": 0.0 }
+     */
+    @PostMapping("/driver/initial")
+    public ResponseEntity<DriverPositionResponse> initialLocation(
+            @Valid @RequestBody InitialLocationRequest req) {
+
+        LocationPingRequest ping = LocationPingRequest.builder()
+                .driverId(req.getDriverId())
+                .latitude(req.getLatitude())
+                .longitude(req.getLongitude())
+                .bearing(req.getBearing())
+                .speedKmh(BigDecimal.ZERO)
+                .isOnline(true)
+                .currentBookingId(null)
+                .build();
+
+        return ResponseEntity.ok(trackingService.handlePing(ping));
+    }
 
     /**
      * POST /api/yaya/location/ping
@@ -40,7 +71,7 @@ public class TaxiLocationController {
      * Driver explicitly goes online (starts shift).
      */
     @PatchMapping("/driver/{driverId}/online")
-    public ResponseEntity<Void> goOnline(@PathVariable Long driverId) {
+    public ResponseEntity<Void> goOnline(@PathVariable String driverId) {
         trackingService.setOnlineStatus(driverId, true);
         return ResponseEntity.ok().build();
     }
@@ -50,7 +81,7 @@ public class TaxiLocationController {
      * Driver ends shift.
      */
     @PatchMapping("/driver/{driverId}/offline")
-    public ResponseEntity<Void> goOffline(@PathVariable Long driverId) {
+    public ResponseEntity<Void> goOffline(@PathVariable String driverId) {
         trackingService.setOnlineStatus(driverId, false);
         return ResponseEntity.ok().build();
     }

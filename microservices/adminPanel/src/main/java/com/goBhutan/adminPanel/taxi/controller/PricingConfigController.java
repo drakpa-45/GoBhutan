@@ -32,7 +32,7 @@ import java.util.List;
  * └─────────────────────────────────────────────┴───────────────────────────┘
  */
 @RestController
-@RequestMapping("/api/admin/taxi/pricing")
+@RequestMapping("/admin/taxi/pricing")
 @RequiredArgsConstructor
 public class PricingConfigController {
 
@@ -155,7 +155,7 @@ public class PricingConfigController {
      * Note: tripCategory and tripMode cannot be changed via PATCH
      * (they are the natural key — changing them would create a different row).
      */
-    @PatchMapping("/{id}")
+    @PatchMapping("/patchById/{id}")
     public ResponseEntity<PricingConfigResponse> patchById(
             @PathVariable Long id,
             @RequestBody PricingConfigRequest request) {   // no @Valid — partial is fine
@@ -171,7 +171,7 @@ public class PricingConfigController {
      *   "reservedPremiumPct": 25
      * }
      */
-    @PatchMapping("/type")
+    @PatchMapping("/patchByType/type")
     public ResponseEntity<PricingConfigResponse> patchByType(
             @RequestParam TripCategory category,
             @RequestParam TripMode mode,

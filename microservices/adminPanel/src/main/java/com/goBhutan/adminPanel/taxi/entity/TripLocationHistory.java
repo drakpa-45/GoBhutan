@@ -32,7 +32,7 @@ public class TripLocationHistory {
     private Long bookingId;
 
     @Column(name = "driver_id", nullable = false)
-    private Long driverId;
+    private String driverId;
 
     @Column(name = "latitude", nullable = false, precision = 10, scale = 7)
     private BigDecimal latitude;

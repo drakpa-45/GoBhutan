@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 public class BookingRequest {
 
     @NotNull
-    private Long passengerId;
+    private String passengerId;
 
     // ── Book for self or other ────────────────────────────────────────────────
 

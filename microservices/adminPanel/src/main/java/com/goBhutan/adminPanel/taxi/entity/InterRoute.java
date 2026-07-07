@@ -21,7 +21,7 @@ public class InterRoute {
 
     /** FK to driver (your existing User/Driver entity) */
     @Column(name = "driver_id", nullable = false)
-    private Long driverId;
+    private String driverId;
 
     @Column(name = "origin_dzongkhag", nullable = false)
     private String originDzongkhag;

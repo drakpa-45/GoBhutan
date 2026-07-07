@@ -4,6 +4,8 @@ import com.goBhutan.adminPanel.taxi.entity.InterRoute;
 import com.goBhutan.adminPanel.taxi.repository.InterRouteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -28,6 +30,16 @@ public class InterRouteController {
         return ResponseEntity.ok(routeRepo.save(route));
     }
 
+    /**
+     * Get a routes by driver id.
+     * GET /taxi/routes/getMyRoutes
+     */
+    @GetMapping("/getMyRoutes")
+    public ResponseEntity<List<InterRoute>> getMyRoutes() {
+        Jwt principal = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String driverId = principal.getSubject();
+        return ResponseEntity.ok(routeRepo.findByDriverIdAndIsActiveTrue(driverId));
+    }
     /**
      * Search routes by origin and destination dzongkhag.
      * GET /api/yaya/routes?origin=Thimphu&destination=Phuentsholing

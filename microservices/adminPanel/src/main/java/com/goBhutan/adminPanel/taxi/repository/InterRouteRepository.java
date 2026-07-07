@@ -1,5 +1,6 @@
 package com.goBhutan.adminPanel.taxi.repository;
 
+import aj.org.objectweb.asm.commons.Remapper;
 import com.goBhutan.adminPanel.taxi.entity.InterRoute;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -25,4 +26,6 @@ public interface InterRouteRepository extends JpaRepository<InterRoute, Long> {
     @Modifying
     @Query("UPDATE InterRoute r SET r.availableSeats = r.availableSeats + :seats WHERE r.id = :id")
     int incrementSeats(@Param("id") Long id, @Param("seats") int seats);
+
+    List<InterRoute> findByDriverIdAndIsActiveTrue(String driverId);
 }

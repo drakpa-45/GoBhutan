@@ -212,7 +212,7 @@ public class TaxiBookingService {
 
     /** Driver starts the trip */
     @Transactional
-    public BookingResponse startTrip(Long bookingId, Long driverId) {
+    public BookingResponse startTrip(Long bookingId, String driverId) {
         TaxiBooking booking = getBooking(bookingId);
         booking.setDriverId(driverId);
         booking.setBookingStatus(TaxiBookingStatus.IN_PROGRESS);

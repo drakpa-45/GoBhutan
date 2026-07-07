@@ -1,4 +1,5 @@
-version: "3.9"
+
+
 services:
   postgres:
     image: postgres:17
@@ -6,8 +7,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: keycloak
-      POSTGRES_USER: admingobhutan
-      POSTGRES_PASSWORD: goBhutan@admin2026
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -18,15 +19,15 @@ services:
     container_name: keycloak_dev
     restart: unless-stopped
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: yayaAdmin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: yaya@dmin2026
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
-      KC_DB_USERNAME: admingobhutan
-      KC_DB_PASSWORD: goBhutan@admin2026
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
     command: ["start-dev"]
     ports:
-      - "8086:8080"
+      - "8084:8080"
     depends_on:
       - postgres
 

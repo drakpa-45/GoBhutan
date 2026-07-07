@@ -83,7 +83,7 @@ public class SecurityConfig {
 				"http://68.178.160.243",
 				"https://go-bhutan-admin.vercel.app"));
 
-		config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+		config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
 		config.setAllowedHeaders(List.of("*"));
 		config.setAllowCredentials(true);
 		config.setMaxAge(3600L);

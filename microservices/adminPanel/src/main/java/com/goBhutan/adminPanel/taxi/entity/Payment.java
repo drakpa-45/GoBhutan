@@ -25,7 +25,7 @@ public class Payment {
     private Long bookingId;
 
     @Column(name = "payer_id", nullable = false)
-    private Long payerId;
+    private String payerId;
 
     /**
      * DEPOSIT or BALANCE or FULL_PAYMENT or REFUND

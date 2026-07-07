@@ -4,9 +4,13 @@ package com.goBhutan.adminPanel.taxi.service;
 import com.goBhutan.adminPanel.taxi.dto.request.LocationPingRequest;
 import com.goBhutan.adminPanel.taxi.dto.response.DriverPositionResponse;
 import com.goBhutan.adminPanel.taxi.dto.response.NearbyDriverResponse;
+import com.goBhutan.adminPanel.taxi.dto.response.VehicleImageResponse;
 import com.goBhutan.adminPanel.taxi.entity.DriverLocation;
+import com.goBhutan.adminPanel.taxi.entity.TaxiDriver;
 import com.goBhutan.adminPanel.taxi.entity.TripLocationHistory;
 import com.goBhutan.adminPanel.taxi.repository.DriverLocationRepository;
+import com.goBhutan.adminPanel.taxi.repository.TaxiDriverImageRepository;
+import com.goBhutan.adminPanel.taxi.repository.TaxiDriverRepository;
 import com.goBhutan.adminPanel.taxi.repository.TripLocationHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +21,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -29,12 +34,15 @@ public class TaxiLocationTrackingService {
 
     private final DriverLocationRepository driverLocationRepo;
     private final TripLocationHistoryRepository historyRepo;
+    private final TaxiDriverRepository taxiDriverRepo;       // add this
+    private final TaxiDriverImageRepository taxiDriverImageRepo;  // add this
+
 
     /** Driver considered offline if not pinged within this many seconds */
     private static final long OFFLINE_THRESHOLD_SECONDS = 120;
 
     /** Search radius for Pull mode nearest-driver matching (km) */
-    private static final double SEARCH_RADIUS_KM = 10.0;
+    private static final double SEARCH_RADIUS_KM = 5.0;
 
     // ─────────────────────────────────────────────────────────────────────────
     // DRIVER → SERVER  (every 30 seconds from driver app)
@@ -118,15 +126,35 @@ public class TaxiLocationTrackingService {
 
         List<DriverLocation> candidates = (dzongkhag != null)
                 ? driverLocationRepo.findAvailableInDzongkhag(
-                        dzongkhag, latMin, latMax, lngMin, lngMax, cutoff)
+                dzongkhag, latMin, latMax, lngMin, lngMax, cutoff)
                 : driverLocationRepo.findAvailableInBoundingBox(
-                        latMin, latMax, lngMin, lngMax, cutoff);
+                latMin, latMax, lngMin, lngMax, cutoff);
 
         return candidates.stream()
                 .map(d -> {
                     double dist = HaversineUtil.distanceKm(
                             d.getLatitude(), d.getLongitude(),
                             passengerLat, passengerLng);
+
+                    // Fetch driver + taxi details
+                    TaxiDriver taxi = taxiDriverRepo
+                            .findByDriverId(d.getDriverId())
+                            .orElse(null);
+
+                    List<VehicleImageResponse> images = taxi != null
+                            ? taxiDriverImageRepo
+                            .findByTaxiDriverIdOrderByDisplayOrderAsc(taxi.getId())
+                            .stream()
+                            .map(img -> VehicleImageResponse.builder()
+                                    .id(img.getId())
+                                    .imagePath(img.getImagePath())
+                                    .originalFilename(img.getOriginalFilename())
+                                    .displayOrder(img.getDisplayOrder())
+                                    .uploadedAt(img.getUploadedAt())
+                                    .build())
+                            .collect(Collectors.toList())
+                            : Collections.emptyList();
+
                     return NearbyDriverResponse.builder()
                             .driverId(d.getDriverId())
                             .latitude(d.getLatitude())
@@ -136,8 +164,19 @@ public class TaxiLocationTrackingService {
                                     .setScale(2, RoundingMode.HALF_UP))
                             .etaMinutes(HaversineUtil.etaMinutes(dist))
                             .currentDzongkhag(d.getCurrentDzongkhag())
+                            // Driver details
+                            .driverName(taxi != null ? taxi.getDriverName() : null)
+                            .contactNumber(taxi != null ? taxi.getPhoneNumber() : null)
+                            // Taxi details
+                            .vehicleMake(taxi != null ? taxi.getVehicleMake() : null)
+                            .vehicleModel(taxi != null ? taxi.getVehicleModel() : null)
+                            .vehicleColor(taxi != null ? taxi.getVehicleColor() : null)
+                            .totalSeats(taxi != null ? taxi.getTotalSeats() : null)
+                            .registrationNumber(taxi != null ? taxi.getRegistrationNumber() : null)
+                            .images(images)
                             .build();
                 })
+                .filter(r -> r.getDistanceKm().doubleValue() <= SEARCH_RADIUS_KM)
                 .sorted(Comparator.comparingDouble(r -> r.getDistanceKm().doubleValue()))
                 .limit(5)
                 .collect(Collectors.toList());
@@ -168,7 +207,7 @@ public class TaxiLocationTrackingService {
     // ─────────────────────────────────────────────────────────────────────────
 
     @Transactional
-    public void setOnlineStatus(Long driverId, boolean online) {
+    public void setOnlineStatus(String driverId, boolean online) {
         driverLocationRepo.findByDriverId(driverId).ifPresent(loc -> {
             loc.setIsOnline(online);
             if (!online) loc.setCurrentBookingId(null);

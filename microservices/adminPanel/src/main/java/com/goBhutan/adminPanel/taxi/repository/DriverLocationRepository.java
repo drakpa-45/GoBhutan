@@ -12,7 +12,7 @@ import java.util.Optional;
 
 public interface DriverLocationRepository extends JpaRepository<DriverLocation, Long> {
 
-    Optional<DriverLocation> findByDriverId(Long driverId);
+    Optional<DriverLocation> findByDriverId(String driverId);
 
     /**
      * Find online drivers within a bounding box (fast pre-filter before Haversine).

@@ -118,7 +118,7 @@ public class HotelController {
     }
 
 
-    @PutMapping("/{id}/deactivate")
+    @PatchMapping("/{id}/deactivate")
 // @PreAuthorize("hasRole('client_admin_hotel')")
     public ResponseEntity<ApiResponse<Void>> deactivateHotel(@PathVariable Long id) {
         try {
