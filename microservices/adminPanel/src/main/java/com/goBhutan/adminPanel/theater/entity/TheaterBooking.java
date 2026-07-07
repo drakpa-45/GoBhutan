@@ -5,6 +5,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
@@ -40,6 +41,15 @@ public class TheaterBooking {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
+    @Column(name = "wallet_payment_ref")
+    private String walletPaymentRef;
+
+    @Column(name = "payment_method")
+    private String paymentMethod;
+
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+
     @OneToMany(
             mappedBy = "booking",
             cascade = CascadeType.ALL,
@@ -60,5 +70,9 @@ public class TheaterBooking {
     @PreUpdate
     void onUpdate() {
         updatedAt = Instant.now();
+    }
+
+    public boolean isExpired() {
+        return expiresAt != null && LocalDateTime.now().isAfter(expiresAt);
     }
 }

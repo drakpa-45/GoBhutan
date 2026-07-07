@@ -55,6 +55,9 @@ public class Booking {
     @Column(name = "wallet_payment_ref", length = 120)
     private String walletPaymentRef;
 
+    @Column(name = "payment_method")
+    private String paymentMethod;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -113,6 +116,14 @@ public class Booking {
 
     public List<Guest> getGuests() { return guests; }
     public void setGuests(List<Guest> guests) { this.guests = guests; }
+
+    public String getPaymentMethod() {
+        return paymentMethod;
+    }
+
+    public void setPaymentMethod(String paymentMethod) {
+        this.paymentMethod = paymentMethod;
+    }
 
     // ✅ Utility - check if pending booking has expired
     public boolean isExpired() {

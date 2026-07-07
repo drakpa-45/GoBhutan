@@ -65,5 +65,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     ORDER BY h.name ASC
 """)
     List<BookingWithHotelDTO> findAllBookingsWithHotelByAdminUserId(@Param("adminUserId") String adminUserId);
+
+    Optional<Booking> findByWalletPaymentRef(String walletPaymentRef);
 }
 
