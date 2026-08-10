@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A route published by a driver for an inter-dzongkhag trip.
@@ -35,9 +37,14 @@ public class InterRoute {
     @Column(name = "destination_address", nullable = false)
     private String destinationAddress;
 
-    /** Intermediate stops (stored as JSON string, e.g. ["Wangdue","Punakha"]) */
-    @Column(name = "stops", columnDefinition = "TEXT")
-    private String stops;
+    // Add this:
+    @OneToMany(mappedBy = "route",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true,
+            fetch = FetchType.EAGER)
+    @OrderBy("stopSequence ASC")
+    @Builder.Default
+    private List<RouteStop> stops = new ArrayList<>();
 
     @Column(name = "route_distance_km", nullable = false, precision = 8, scale = 2)
     private BigDecimal routeDistanceKm;

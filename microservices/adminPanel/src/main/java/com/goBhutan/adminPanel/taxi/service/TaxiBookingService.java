@@ -1,6 +1,8 @@
 package com.goBhutan.adminPanel.taxi.service;
 
-
+import com.goBhutan.adminPanel.paymentInt.dto.ServicePaymentRequest;
+import com.goBhutan.adminPanel.paymentInt.dto.WalletPaymentResult;
+import com.goBhutan.adminPanel.paymentInt.service.PaymentIntegrationService;
 import com.goBhutan.adminPanel.taxi.dto.request.BookingRequest;
 import com.goBhutan.adminPanel.taxi.dto.response.BookingResponse;
 import com.goBhutan.adminPanel.taxi.dto.response.FareBreakdown;
@@ -13,6 +15,9 @@ import com.goBhutan.adminPanel.taxi.repository.PaymentRepository;
 import com.goBhutan.adminPanel.taxi.repository.TaxiBookingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,12 +30,14 @@ import java.time.LocalDateTime;
 public class TaxiBookingService {
 
     private final TaxiBookingRepository bookingRepo;
-    private final InterRouteRepository routeRepo;
-    private final PaymentRepository paymentRepo;
-    private final FareCalculatorService   fareCalc;
+    private final InterRouteRepository  routeRepo;
+    private final PaymentRepository     paymentRepo;
+    private final FareCalculatorService fareCalc;
 
+    @Autowired
+    private PaymentIntegrationService paymentService;
     // ─────────────────────────────────────────────────────────────────────────
-    // CREATE BOOKING — routes to the correct mode handler
+    // CREATE BOOKING
     // ─────────────────────────────────────────────────────────────────────────
 
     @Transactional
@@ -38,7 +45,7 @@ public class TaxiBookingService {
         validate(req);
 
         TripCategory cat  = req.getTripCategory();
-        TripMode mode = req.getTripMode();
+        TripMode     mode = req.getTripMode();
 
         if (cat == TripCategory.INTRA_DZONGKHAG && mode == TripMode.PULL)
             return handleIntraPull(req);
@@ -57,15 +64,11 @@ public class TaxiBookingService {
 
     // ─────────────────────────────────────────────────────────────────────────
     // MODE HANDLERS
+    // All modes: app charges baseFare only at booking time.
+    // Remaining balance (totalFare - baseFare) is paid directly to driver
+    // via cash or their own mPay/bank scan — no app involvement.
     // ─────────────────────────────────────────────────────────────────────────
 
-    /**
-     * INTRA + PULL
-     * - Calculate fare by distance
-     * - Wallet/mPay: deduct full fare immediately
-     * - Cash: record pending, driver confirms later
-     * - No seat reservation needed
-     */
     private BookingResponse handleIntraPull(BookingRequest req) {
         FareBreakdown fare = fareCalc.calculateIntraPull(
                 req.getDistanceKm(),
@@ -76,21 +79,21 @@ public class TaxiBookingService {
         booking.setSeatsBooked(1);
         booking = bookingRepo.save(booking);
 
-        Payment payment = createPayment(booking, fare.getTotalFare(),
-                Payment.TYPE_FULL_PAYMENT, req.getPaymentMethod());
+        // Charge baseFare only
+        Payment payment = createPayment(booking, fare.getBaseFare(),
+                Payment.TYPE_DEPOSIT, req.getPaymentMethod());
+        processPayment(payment, req.getPaymentMethod());
 
-        String message = resolveIntraPullPayment(booking, payment, fare);
+        booking.setPaymentStatus(TaxiPaymentStatus.DEPOSIT_HELD);
+        bookingRepo.save(booking);
 
-        return toResponse(booking, fare, message,
-                fare.getTotalFare(), null, null);
+        String msg = String.format(
+                "Base fare Nu %.0f charged. Pay remaining Nu %.0f directly to driver.",
+                fare.getBaseFare(), fare.getBalanceAmount());
+
+        return toResponse(booking, fare, msg, fare.getBaseFare(), null, null);
     }
 
-    /**
-     * INTRA + RESERVED
-     * - Calculate fare with reserved premium
-     * - Charge deposit at booking; balance on trip completion
-     * - Taxi guaranteed at scheduled time
-     */
     private BookingResponse handleIntraReserved(BookingRequest req) {
         FareBreakdown fare = fareCalc.calculateIntraReserved(
                 req.getDistanceKm(),
@@ -100,45 +103,40 @@ public class TaxiBookingService {
         TaxiBooking booking = buildBaseBooking(req, fare);
         booking.setSeatsBooked(1);
         booking.setScheduledPickupTime(req.getScheduledPickupTime());
-        booking.setBookingStatus(TaxiBookingStatus.PENDING);
         booking = bookingRepo.save(booking);
 
-        // Charge deposit now; balance will be charged in completeTrip()
-        Payment deposit = createPayment(booking, fare.getDepositAmount(),
+        // Charge baseFare only
+        Payment payment = createPayment(booking, fare.getBaseFare(),
                 Payment.TYPE_DEPOSIT, req.getPaymentMethod());
-        processPayment(deposit, req.getPaymentMethod());
+        processPayment(payment, req.getPaymentMethod());
 
         booking.setPaymentStatus(TaxiPaymentStatus.DEPOSIT_HELD);
         booking.setBookingStatus(TaxiBookingStatus.DEPOSIT_PAID);
         bookingRepo.save(booking);
 
         String msg = String.format(
-                "Deposit of Nu %.0f charged. Balance of Nu %.0f due on trip completion.",
-                fare.getDepositAmount(), fare.getBalanceAmount());
+                "Base fare Nu %.0f charged. Pay remaining Nu %.0f directly to driver on arrival.",
+                fare.getBaseFare(), fare.getBalanceAmount());
 
-        return toResponse(booking, fare, msg,
-                fare.getDepositAmount(), null, null);
+        return toResponse(booking, fare, msg, fare.getBaseFare(), null, null);
     }
 
-    /**
-     * INTER + PULL  (shared seat on a driver-published route)
-     * - Atomically decrement seats to prevent overbooking
-     * - Full per-seat fare charged immediately (payment required to hold seat)
-     */
     @Transactional
-    private BookingResponse handleInterPull(BookingRequest req) {
+    public BookingResponse handleInterPull(BookingRequest req) {
         InterRoute route = getActiveRoute(req.getInterRouteId());
 
         int seats = req.getSeatsBooked() != null ? req.getSeatsBooked() : 1;
 
-        // Atomic seat decrement — returns 0 if not enough seats
         int updated = routeRepo.decrementSeats(route.getId(), seats);
-        if (updated == 0) {
+        if (updated == 0)
             throw new IllegalStateException(
                     "Not enough seats available on route " + route.getId());
-        }
 
-        FareBreakdown fare = fareCalc.calculateInterPull(route, seats);
+        // After
+        FareBreakdown fare = fareCalc.calculateInterPull(
+                route, seats,
+                req.getBoardingStopId(),
+                req.getAlightingStopId());
 
         TaxiBooking booking = buildBaseBooking(req, fare);
         booking.setInterRouteId(route.getId());
@@ -146,41 +144,36 @@ public class TaxiBookingService {
         booking.setDistanceKm(route.getRouteDistanceKm());
         booking = bookingRepo.save(booking);
 
-        // Full seat fare paid immediately — seat is only held after payment
-        Payment payment = createPayment(booking, fare.getTotalFare(),
-                Payment.TYPE_FULL_PAYMENT, req.getPaymentMethod());
+        // Charge baseFare only — seat held after payment
+        Payment payment = createPayment(booking, fare.getBaseFare(),
+                Payment.TYPE_DEPOSIT, req.getPaymentMethod());
         processPayment(payment, req.getPaymentMethod());
 
-        booking.setPaymentStatus(TaxiPaymentStatus.FULLY_PAID);
+        booking.setPaymentStatus(TaxiPaymentStatus.DEPOSIT_HELD);
         bookingRepo.save(booking);
 
         int remaining = route.getAvailableSeats() - seats;
         String msg = String.format(
-                "%d seat(s) confirmed on route. Nu %.0f paid. %d seats remaining.",
-                seats, fare.getTotalFare(), remaining);
+                "%d seat(s) confirmed. Base fare Nu %.0f charged. " +
+                        "Pay remaining Nu %.0f directly to driver. %d seats left.",
+                seats, fare.getBaseFare(), fare.getBalanceAmount(), remaining);
 
-        return toResponse(booking, fare, msg, fare.getTotalFare(),
-                remaining, route.getId());
+        return toResponse(booking, fare, msg, fare.getBaseFare(), remaining, route.getId());
     }
 
-    /**
-     * INTER + RESERVED  (exclusive full-vehicle booking)
-     * - All seats blocked for this passenger (no other bookings on this route)
-     * - Deposit charged now; balance on departure/completion
-     * - Driver guaranteed full vehicle revenue
-     */
     @Transactional
-    private BookingResponse handleInterReserved(BookingRequest req) {
+    public BookingResponse handleInterReserved(BookingRequest req) {
         InterRoute route = getActiveRoute(req.getInterRouteId());
 
-        // Reserve ALL seats
         int updated = routeRepo.decrementSeats(route.getId(), route.getAvailableSeats());
-        if (updated == 0) {
+        if (updated == 0)
             throw new IllegalStateException(
                     "Route " + route.getId() + " has no available seats to reserve.");
-        }
 
-        FareBreakdown fare = fareCalc.calculateInterReserved(route);
+        FareBreakdown fare = fareCalc.calculateInterReserved(
+                route,
+                req.getBoardingStopId(),
+                req.getAlightingStopId());
 
         TaxiBooking booking = buildBaseBooking(req, fare);
         booking.setInterRouteId(route.getId());
@@ -189,28 +182,27 @@ public class TaxiBookingService {
         booking.setDistanceKm(route.getRouteDistanceKm());
         booking = bookingRepo.save(booking);
 
-        Payment deposit = createPayment(booking, fare.getDepositAmount(),
+        // Charge baseFare only
+        Payment payment = createPayment(booking, fare.getBaseFare(),
                 Payment.TYPE_DEPOSIT, req.getPaymentMethod());
-        processPayment(deposit, req.getPaymentMethod());
+        processPayment(payment, req.getPaymentMethod());
 
         booking.setPaymentStatus(TaxiPaymentStatus.DEPOSIT_HELD);
         booking.setBookingStatus(TaxiBookingStatus.DEPOSIT_PAID);
         bookingRepo.save(booking);
 
         String msg = String.format(
-                "Full vehicle reserved. Deposit Nu %.0f charged. " +
-                "Balance of Nu %.0f due on trip completion.",
-                fare.getDepositAmount(), fare.getBalanceAmount());
+                "Full vehicle reserved. Base fare Nu %.0f charged. " +
+                        "Pay remaining Nu %.0f directly to driver on departure.",
+                fare.getBaseFare(), fare.getBalanceAmount());
 
-        return toResponse(booking, fare, msg,
-                fare.getDepositAmount(), 0, route.getId());
+        return toResponse(booking, fare, msg, fare.getBaseFare(), 0, route.getId());
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // TRIP LIFECYCLE — called by separate TripController endpoints
+    // TRIP LIFECYCLE
     // ─────────────────────────────────────────────────────────────────────────
 
-    /** Driver starts the trip */
     @Transactional
     public BookingResponse startTrip(Long bookingId, String driverId) {
         TaxiBooking booking = getBooking(bookingId);
@@ -221,29 +213,29 @@ public class TaxiBookingService {
         return toResponse(booking, null, "Trip started.", null, null, null);
     }
 
-    /** Driver or system marks trip complete — collects balance for Reserved */
+    /**
+     * Trip complete — no balance collection.
+     * Passenger already paid remaining directly to driver.
+     * Just mark completed and settle platform commission on baseFare.
+     */
     @Transactional
     public BookingResponse completeTrip(Long bookingId) {
         TaxiBooking booking = getBooking(bookingId);
         booking.setBookingStatus(TaxiBookingStatus.COMPLETED);
         booking.setTripEndedAt(LocalDateTime.now());
-
-        // Collect balance for Reserved mode
-        if (booking.getTripMode() == TripMode.RESERVED
-                && booking.getBalanceAmount() != null
-                && booking.getBalanceAmount().compareTo(BigDecimal.ZERO) > 0) {
-
-            Payment balance = createPayment(booking, booking.getBalanceAmount(),
-                    Payment.TYPE_BALANCE, booking.getPaymentMethod());
-            processPayment(balance, booking.getPaymentMethod());
-            booking.setPaymentStatus(TaxiPaymentStatus.FULLY_PAID);
-        }
-
+        booking.setPaymentStatus(TaxiPaymentStatus.FULLY_PAID);
         bookingRepo.save(booking);
-        return toResponse(booking, null, "Trip completed. Payment settled.", null, null, null);
+
+        log.info("Trip {} completed. Commission Nu {} on base fare. " +
+                        "Driver net from app: Nu {}. Remaining Nu {} settled directly.",
+                bookingId,
+                booking.getCommissionAmount(),
+                booking.getDriverNetAmount(),
+                booking.getBalanceAmount());
+
+        return toResponse(booking, null, "Trip completed.", null, null, null);
     }
 
-    /** Cancel booking with refund logic */
     @Transactional
     public BookingResponse cancelBooking(Long bookingId, String reason, boolean byDriver) {
         TaxiBooking booking = getBooking(bookingId);
@@ -254,19 +246,16 @@ public class TaxiBookingService {
                 ? TaxiBookingStatus.CANCELLED_BY_DRIVER
                 : TaxiBookingStatus.CANCELLED_BY_PASSENGER);
 
-        // Restore seats for inter-dzongkhag bookings
-        if (booking.getInterRouteId() != null && booking.getSeatsBooked() != null) {
+        // Restore seats for inter-dzongkhag
+        if (booking.getInterRouteId() != null && booking.getSeatsBooked() != null)
             routeRepo.incrementSeats(booking.getInterRouteId(), booking.getSeatsBooked());
-        }
 
-        // Refund logic
         handleCancellationRefund(booking);
-
         bookingRepo.save(booking);
+
         return toResponse(booking, null, "Booking cancelled. Refund processed.", null, null, null);
     }
 
-    /** Driver confirms cash received (for CASH payment method) */
     @Transactional
     public void confirmCashReceived(Long bookingId) {
         TaxiBooking booking = getBooking(bookingId);
@@ -288,13 +277,14 @@ public class TaxiBookingService {
     // ─────────────────────────────────────────────────────────────────────────
 
     private TaxiBooking buildBaseBooking(BookingRequest req, FareBreakdown fare) {
+        // balanceAmount = totalFare - baseFare (passenger pays this directly to driver)
+        BigDecimal balanceAmount = fare.getTotalFare().subtract(fare.getBaseFare());
+
         return TaxiBooking.builder()
                 .passengerId(req.getPassengerId())
                 .bookForOther(req.getBookForOther())
-                .riderName(Boolean.TRUE.equals(req.getBookForOther())
-                        ? req.getRiderName() : null)
-                .riderPhone(Boolean.TRUE.equals(req.getBookForOther())
-                        ? req.getRiderPhone() : null)
+                .riderName(Boolean.TRUE.equals(req.getBookForOther()) ? req.getRiderName() : null)
+                .riderPhone(Boolean.TRUE.equals(req.getBookForOther()) ? req.getRiderPhone() : null)
                 .tripCategory(req.getTripCategory())
                 .tripMode(req.getTripMode())
                 .riderPickupLat(req.getRiderPickupLat())
@@ -304,25 +294,26 @@ public class TaxiBookingService {
                 .dropOffLng(req.getDropOffLng())
                 .dropOffAddress(req.getDropOffAddress())
                 .distanceKm(req.getDistanceKm())
+                .boardingStopId(req.getBoardingStopId())
+                .alightingStopId(req.getAlightingStopId())
                 .paymentMethod(req.getPaymentMethod())
                 .paymentStatus(TaxiPaymentStatus.PENDING)
                 .bookingStatus(TaxiBookingStatus.PENDING)
-                // fare fields
                 .baseFare(fare.getBaseFare())
                 .distanceCharge(fare.getDistanceCharge())
                 .nightSurcharge(fare.getNightSurcharge())
                 .reservedPremium(fare.getReservedPremium())
                 .surgeMultiplier(fare.getSurgeMultiplier())
                 .totalFare(fare.getTotalFare())
-                .depositAmount(fare.getDepositAmount())
-                .balanceAmount(fare.getBalanceAmount())
+                .depositAmount(fare.getBaseFare())       // app charges baseFare only
+                .balanceAmount(balanceAmount)            // paid directly to driver
                 .commissionAmount(fare.getCommissionAmount())
                 .driverNetAmount(fare.getDriverNetAmount())
                 .build();
     }
 
     private Payment createPayment(TaxiBooking booking, BigDecimal amount,
-                                   String type, TaxiPaymentMethod method) {
+                                  String type, TaxiPaymentMethod method) {
         Payment p = Payment.builder()
                 .bookingId(booking.getId())
                 .payerId(booking.getPassengerId())
@@ -334,52 +325,64 @@ public class TaxiBookingService {
         return paymentRepo.save(p);
     }
 
-    /**
-     * Stub — in production connect to mPay/BOB/BNB gateway or deduct from Yaya Wallet.
-     * For CASH: do nothing here; driver confirms later via confirmCashReceived().
-     */
     private void processPayment(Payment payment, TaxiPaymentMethod method) {
         if (method == TaxiPaymentMethod.CASH) {
             log.info("Cash payment for booking {} — awaiting driver confirmation.",
                     payment.getBookingId());
             return;
         }
-        // TODO: call gateway service (mPay, BOB, BNB, Yaya Wallet)
+
+        if (method == TaxiPaymentMethod.YAYA_WALLET) {
+            Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String userId = jwt.getSubject();
+
+            if (payment.getGatewayReference() != null && !payment.getGatewayReference().isBlank())
+                throw new RuntimeException("Wallet payment already processed for this booking.");
+
+            ServicePaymentRequest paymentRequest = new ServicePaymentRequest();
+            paymentRequest.setAmount(payment.getAmount());
+            paymentRequest.setCurrency("BTN");
+            paymentRequest.setServiceName("TAXI");
+            paymentRequest.setReferenceType("TAXI_BOOKING");
+            paymentRequest.setReferenceId(String.valueOf(payment.getBookingId()));
+            paymentRequest.setDescription("Taxi booking base fare payment");
+
+            WalletPaymentResult walletPayment = paymentService.payWithWallet(paymentRequest, userId);
+
+            paymentService.creditServiceSettlement(
+                    walletPayment.getPaymentRef(),
+                    payment.getAmount(),
+                    "TAXI",
+                    "TAXI_BOOKING",
+                    String.valueOf(payment.getBookingId()),
+                    "Taxi booking settlement",
+                    userId
+            );
+
+            payment.setGatewayReference(walletPayment.getPaymentRef());
+            log.info("Wallet payment {} of Nu {} processed. Ref: {}",
+                    payment.getId(), payment.getAmount(), walletPayment.getPaymentRef());
+        }
+
+        // mPay / BOB / BNB — TODO: integrate gateway
         payment.setPaymentStatus(TaxiPaymentStatus.FULLY_PAID);
         payment.setSettledAt(LocalDateTime.now());
         paymentRepo.save(payment);
-        log.info("Payment {} of Nu {} processed via {}.",
+        log.info("Base fare payment {} of Nu {} processed via {}.",
                 payment.getId(), payment.getAmount(), method);
     }
 
-    private String resolveIntraPullPayment(TaxiBooking booking, Payment payment, FareBreakdown fare) {
-        if (booking.getPaymentMethod() == TaxiPaymentMethod.CASH) {
-            return String.format("Booking confirmed. Pay Nu %.0f cash to driver.", fare.getTotalFare());
-        }
-        processPayment(payment, booking.getPaymentMethod());
-        booking.setPaymentStatus(TaxiPaymentStatus.FULLY_PAID);
-        bookingRepo.save(booking);
-        return String.format("Nu %.0f paid via %s. Driver on the way.",
-                fare.getTotalFare(), booking.getPaymentMethod());
-    }
-
     private void handleCancellationRefund(TaxiBooking booking) {
-        // Reserved: if cancelled before driver departs → 100% refund of deposit
-        // Pull: if cancelled before driver accepted → 100% refund
-        // Otherwise → partial or no refund (implement business rules here)
+        // Refund only the baseFare that was charged by the app
+        // Remaining balance was never captured — nothing to refund
         if (booking.getPaymentStatus() == TaxiPaymentStatus.DEPOSIT_HELD
                 || booking.getPaymentStatus() == TaxiPaymentStatus.FULLY_PAID) {
 
-            BigDecimal refundAmount = booking.getTripMode() == TripMode.RESERVED
-                    ? booking.getDepositAmount()   // deposit only; balance not yet charged
-                    : booking.getTotalFare();       // full refund for pull if not started
+            BigDecimal refundAmount = booking.getTripStartedAt() != null
+                    ? BigDecimal.ZERO              // trip already started — no refund
+                    : booking.getDepositAmount();  // refund baseFare charged by app
 
-            if (booking.getTripStartedAt() != null) {
-                // Trip already started — no refund
-                refundAmount = BigDecimal.ZERO;
-            }
-
-            if (refundAmount != null && refundAmount.compareTo(BigDecimal.ZERO) > 0) {
+            if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
                 Payment refund = createPayment(booking, refundAmount,
                         Payment.TYPE_REFUND, booking.getPaymentMethod());
                 refund.setPaymentStatus(TaxiPaymentStatus.FULLY_PAID);
@@ -405,24 +408,22 @@ public class TaxiBookingService {
     }
 
     private void validate(BookingRequest req) {
-        if (Boolean.TRUE.equals(req.getBookForOther())) {
+        if (Boolean.TRUE.equals(req.getBookForOther()))
             if (req.getRiderPhone() == null || req.getRiderPhone().isBlank())
                 throw new IllegalArgumentException("Rider phone required when booking for another person.");
-        }
-        if (req.getTripCategory() == TripCategory.INTER_DZONGKHAG
-                && req.getInterRouteId() == null) {
+
+        if (req.getTripCategory() == TripCategory.INTER_DZONGKHAG && req.getInterRouteId() == null)
             throw new IllegalArgumentException("interRouteId required for inter-dzongkhag booking.");
-        }
+
         if (req.getTripMode() == TripMode.RESERVED
                 && req.getTripCategory() == TripCategory.INTRA_DZONGKHAG
-                && req.getScheduledPickupTime() == null) {
+                && req.getScheduledPickupTime() == null)
             throw new IllegalArgumentException("scheduledPickupTime required for Intra Reserved.");
-        }
     }
 
     private BookingResponse toResponse(TaxiBooking b, FareBreakdown fare,
-                                        String message, BigDecimal amountDueNow,
-                                        Integer seatsRemaining, Long routeId) {
+                                       String message, BigDecimal amountDueNow,
+                                       Integer seatsRemaining, Long routeId) {
         return BookingResponse.builder()
                 .bookingId(b.getId())
                 .tripCategory(b.getTripCategory())
@@ -444,5 +445,64 @@ public class TaxiBookingService {
                 .paymentMessage(message)
                 .createdAt(b.getCreatedAt())
                 .build();
+    }
+
+    /**
+     * Driver declines the booking.
+     * Refunds baseFare back to passenger and frees seats.
+     */
+    @Transactional
+    public BookingResponse declineBooking(Long bookingId, String driverId) {
+        TaxiBooking booking = getBooking(bookingId);
+
+        if (booking.getBookingStatus() != TaxiBookingStatus.PENDING)
+            throw new IllegalStateException("Only PENDING bookings can be declined.");
+
+        booking.setBookingStatus(TaxiBookingStatus.DRIVER_DECLINED);
+        booking.setCancelledAt(LocalDateTime.now());
+        booking.setCancellationReason("Driver declined the request.");
+
+        // Restore seats for inter-dzongkhag
+        if (booking.getInterRouteId() != null && booking.getSeatsBooked() != null)
+            routeRepo.incrementSeats(booking.getInterRouteId(), booking.getSeatsBooked());
+
+        // Refund baseFare back to passenger wallet
+        if (booking.getDepositAmount() != null
+                && booking.getDepositAmount().compareTo(BigDecimal.ZERO) > 0
+                && booking.getPaymentMethod() == TaxiPaymentMethod.YAYA_WALLET) {
+
+            // Find the original payment to get the gateway reference
+            Payment original = paymentRepo.findByBookingIdOrderByCreatedAtAsc(bookingId)
+                    .stream()
+                    .filter(p -> p.getPaymentType().equals(Payment.TYPE_DEPOSIT))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Original payment not found for refund."));
+
+            // Refund back to the passenger's wallet using original gateway reference
+            paymentService.refundToWallet(
+                    original.getGatewayReference(),   // original transaction ref
+                    booking.getDepositAmount(),
+                    "TAXI",
+                    "TAXI_BOOKING",
+                    String.valueOf(bookingId),
+                    "Refund — driver declined booking",
+                    original.getPayerId()
+            );
+
+            Payment refund = createPayment(booking, booking.getDepositAmount(),
+                    Payment.TYPE_REFUND, TaxiPaymentMethod.YAYA_WALLET);
+            refund.setGatewayReference(original.getGatewayReference());
+            refund.setPaymentStatus(TaxiPaymentStatus.FULLY_PAID);
+            refund.setSettledAt(LocalDateTime.now());
+            paymentRepo.save(refund);
+
+            booking.setPaymentStatus(TaxiPaymentStatus.FULLY_REFUNDED);
+            log.info("Wallet refund of Nu {} processed for booking {} — driver declined.",
+                    booking.getDepositAmount(), bookingId);
+        }
+
+        bookingRepo.save(booking);
+        return toResponse(booking, null,
+                "Driver declined. Base fare refunded to your account.", null, null, null);
     }
 }

@@ -8,5 +8,6 @@ public enum TaxiBookingStatus {
     COMPLETED,          // trip done, balance settled
     CANCELLED_BY_PASSENGER,
     CANCELLED_BY_DRIVER,
-    REFUNDED
+    REFUNDED,
+    DRIVER_DECLINED   // driver rejected the request
 }

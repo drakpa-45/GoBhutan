@@ -44,6 +44,12 @@ public class TaxiBooking {
     @Column(name = "book_for_other", nullable = false)
     private Boolean bookForOther = false;
 
+    @Column(name = "boarding_stop_id")
+    private Long boardingStopId;
+
+    @Column(name = "alighting_stop_id")
+    private Long alightingStopId;
+
     // ── Trip classification ───────────────────────────────────────────────────
 
     @Enumerated(EnumType.STRING)

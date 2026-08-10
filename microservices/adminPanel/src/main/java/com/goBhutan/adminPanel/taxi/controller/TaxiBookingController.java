@@ -6,6 +6,8 @@ import com.goBhutan.adminPanel.taxi.service.TaxiBookingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -67,5 +69,17 @@ public class TaxiBookingController {
     public ResponseEntity<Void> confirmCash(@PathVariable Long id) {
         bookingService.confirmCashReceived(id);
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * PATCH /taxi/bookings/{id}/decline
+     * Driver declines a booking request.
+     */
+    @PatchMapping("/{id}/decline")
+    public ResponseEntity<BookingResponse> declineBooking(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Jwt jwt) {
+        String driverId = jwt.getSubject();
+        return ResponseEntity.ok(bookingService.declineBooking(id, driverId));
     }
 }

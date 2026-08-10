@@ -14,26 +14,17 @@ public class BookingRequest {
     @NotNull
     private String passengerId;
 
-    // ── Book for self or other ────────────────────────────────────────────────
-
     @NotNull
     private Boolean bookForOther;
 
-    /** Required if bookForOther = true */
     private String riderName;
-
-    /** Required if bookForOther = true — rider will receive SMS notification */
     private String riderPhone;
-
-    // ── Trip type ─────────────────────────────────────────────────────────────
 
     @NotNull
     private TripCategory tripCategory;
 
     @NotNull
     private TripMode tripMode;
-
-    // ── Pickup location (always the RIDER's location) ─────────────────────────
 
     @NotNull
     private BigDecimal riderPickupLat;
@@ -42,32 +33,32 @@ public class BookingRequest {
     private BigDecimal riderPickupLng;
 
     private String riderPickupAddress;
-
-    // ── Drop-off (intra only or for display in inter) ─────────────────────────
-
     private BigDecimal dropOffLat;
     private BigDecimal dropOffLng;
-    private String     dropOffAddress;
+    private String dropOffAddress;
 
-    // ── Intra specifics ───────────────────────────────────────────────────────
-
-    /** Actual trip distance in km (calculated by client using Google Maps) */
+    // Intra
     private BigDecimal distanceKm;
 
-    // ── Inter specifics ───────────────────────────────────────────────────────
-
-    /** FK to InterRoute — required for inter-dzongkhag bookings */
+    // Inter
     private Long interRouteId;
-
-    /** Number of seats to book (inter PULL only; null for inter RESERVED = all seats) */
     private Integer seatsBooked;
 
-    // ── Reserved specifics ────────────────────────────────────────────────────
+    /**
+     * Inter-dzongkhag stop-based booking.
+     * Passenger boards at this stop (from tbl_taxi_route_stop).
+     * If null → boards at route origin.
+     */
+    private Long boardingStopId;
 
-    /** Required for RESERVED mode */
+    /**
+     * Passenger alights at this stop.
+     * If null → alights at route destination.
+     */
+    private Long alightingStopId;
+
+    // Reserved
     private LocalDateTime scheduledPickupTime;
-
-    // ── Payment ───────────────────────────────────────────────────────────────
 
     @NotNull
     private TaxiPaymentMethod paymentMethod;

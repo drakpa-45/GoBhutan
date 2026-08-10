@@ -17,7 +17,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: update #change to validate while deploying in production.
     properties:
       hibernate.dialect: org.hibernate.dialect.MySQLDialect   # Updated to MySQL8Dialect for modern MySQL
     show-sql: true
