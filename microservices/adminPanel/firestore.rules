@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // The notification module is backend-only and uses the Firebase Admin SDK.
+    // All client access must go through the authenticated Spring REST APIs.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -9,8 +9,14 @@ import com.goBhutan.adminPanel.gasDelivery.entity.GasDeliveryItemDtls;
 import com.goBhutan.adminPanel.gasDelivery.enums.GasDeliveryStatus;
 import com.goBhutan.adminPanel.gasDelivery.repository.GasConfigMasterRepository;
 import com.goBhutan.adminPanel.gasDelivery.repository.GasDeliveryDtlsRepository;
+import com.goBhutan.adminPanel.notification.dto.NotificationRequest;
+import com.goBhutan.adminPanel.notification.enums.NotificationCategory;
+import com.goBhutan.adminPanel.notification.enums.NotificationChannel;
+import com.goBhutan.adminPanel.notification.enums.NotificationPriority;
+import com.goBhutan.adminPanel.notification.event.NotificationAfterCommitPublisher;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
@@ -27,6 +33,7 @@ public class GasDeliveryService {
 
     private final GasDeliveryDtlsRepository gasDeliveryDtlsRepository;
     private final GasConfigMasterRepository gasConfigMasterRepository;
+    private final ObjectProvider<NotificationAfterCommitPublisher> notificationPublisherProvider;
 
     public GasDeliveryResponse create(GasDeliveryCreateRequest request, String userId) {
         validateDuplicateGasTypes(request);
@@ -87,7 +94,40 @@ public class GasDeliveryService {
         delivery.setAdminUserId(adminUserId);
         delivery.setAdminRemarks(trimToNull(request.getAdminRemarks()));
 
-        return toResponse(gasDeliveryDtlsRepository.save(delivery));
+        GasDeliveryDtls saved = gasDeliveryDtlsRepository.save(delivery);
+        if (saved.getStatus() == GasDeliveryStatus.DISPATCHED) {
+            publishDeliveryUpdate(saved);
+        }
+
+        return toResponse(saved);
+    }
+
+    private void publishDeliveryUpdate(GasDeliveryDtls delivery) {
+        NotificationAfterCommitPublisher publisher = notificationPublisherProvider.getIfAvailable();
+        if (publisher == null) {
+            return;
+        }
+
+        String deliveryId = delivery.getId().toString();
+        NotificationRequest notification = NotificationRequest.builder()
+                .eventId("GAS:GAS_DELIVERY_UPDATE:" + deliveryId + ":" + delivery.getStatus())
+                .recipientId(delivery.getUserId())
+                .title("Gas delivery approved")
+                .body("Your gas delivery request has been approved and dispatched.")
+                .category(NotificationCategory.GAS_DELIVERY_UPDATE)
+                .channel(NotificationChannel.PUSH_AND_IN_APP)
+                .sourceModule("GAS")
+                .sourceEntityType("GAS_DELIVERY")
+                .sourceEntityId(deliveryId)
+                .actionType("OPEN_GAS_DELIVERY")
+                .actionValue(deliveryId)
+                .priority(NotificationPriority.NORMAL)
+                .data(Map.of(
+                        "deliveryId", deliveryId,
+                        "status", delivery.getStatus().name()))
+                .build();
+
+        publisher.sendAfterCommit(notification);
     }
 
     private void updateDispatchQuantities(GasDeliveryDtls delivery, GasDeliveryAdminStatusRequest request) {
