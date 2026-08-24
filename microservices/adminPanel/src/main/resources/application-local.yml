@@ -19,7 +19,7 @@ spring:
     hibernate:
       ddl-auto: update
     properties:
-      hibernate.dialect: org.hibernate.dialect.MySQLDialect   # Updated to MySQL8Dialect for modern MySQL
+      hibernate.dialect: org.hibernate.dialect.MySQLDialect # Updated to MySQL8Dialect for modern MySQL
     show-sql: true
   task:
     scheduling:
@@ -31,13 +31,13 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8084/realms/Go-Bhutan  # ? Keycloak realm issuer
+          issuer-uri: http://localhost:8084/realms/Go-Bhutan # ? Keycloak realm issuer
           #issuer-uri: https://gobhutan.site/realms/Go-Bhutan  # ? Keycloak realm issuer
   mail:
     host: smtp.gmail.com
     port: 587
     username: pemadrakpa1996@gmail.com
-    password: lngw gnjk pejk gpho   # Gmail App Password, not account password
+    password: lngw gnjk pejk gpho # Gmail App Password, not account password
     properties:
       mail:
         smtp:
@@ -64,11 +64,10 @@ app:
       jwt: # JWT Role Converter
         auth:
           converter:
-            resource-id: hotel-admin-rest-api    # ? must match Keycloak client-id that has roles
-            principle-attribute: preferred_username   # JWT claim to use as principal username
+            resource-id: hotel-admin-rest-api # ? must match Keycloak client-id that has roles
+            principle-attribute: preferred_username # JWT claim to use as principal username
       keycloak: # Keycloak Admin Client (for backend management)
-
-        serverUrl: http://localhost:8084  # Keycloak server URL (dev-only)
+        serverUrl: http://localhost:8084 # Keycloak server URL (dev-only)
         #serverUrl: https://gobhutan.site  # Keycloak server URL (must match token issuer host)
 
         realm: Go-Bhutan # Keycloak realm
@@ -82,10 +81,10 @@ app:
       jwt: # JWT Role Converter
         auth:
           converter:
-            resource-id: theater-admin-rest-api    # ? must match Keycloak client-id that has roles
-            principle-attribute: preferred_username   # JWT claim to use as principal username
+            resource-id: theater-admin-rest-api # ? must match Keycloak client-id that has roles
+            principle-attribute: preferred_username # JWT claim to use as principal username
       keycloak: # Keycloak Admin Client (for backend management)
-        serverUrl: http://localhost:8084  # Keycloak server URL (dev-only)
+        serverUrl: http://localhost:8084 # Keycloak server URL (dev-only)
         #serverUrl: https://gobhutan.site  # Keycloak server URL (must match token issuer host)
 
         realm: Go-Bhutan # Keycloak realm
@@ -108,7 +107,7 @@ app:
             resource-id: bus-admin-rest-api
             principle-attribute: preferred_username
       keycloak:
-        serverUrl: http://localhost:8084  # Keycloak server URL (dev-only)
+        serverUrl: http://localhost:8084 # Keycloak server URL (dev-only)
         #serverUrl: https://gobhutan.site  # Keycloak server URL (must match token issuer host)
 
         realm: Go-Bhutan # Keycloak realm
@@ -125,7 +124,7 @@ app:
             resource-id: public-user-rest-api
             principle-attribute: preferred_username
       keycloak:
-        serverUrl: http://localhost:8084  # Keycloak server URL (dev-only)
+        serverUrl: http://localhost:8084 # Keycloak server URL (dev-only)
         #serverUrl: https://gobhutan.site  # Keycloak server URL (must match token issuer host)
 
         realm: Go-Bhutan # Keycloak realm
@@ -143,7 +142,7 @@ app:
             resource-id: public-user-rest-api
             principle-attribute: preferred_username
       keycloak:
-        serverUrl: http://localhost:8084  # Keycloak server URL (dev-only)
+        serverUrl: http://localhost:8084 # Keycloak server URL (dev-only)
         #serverUrl: https://gobhutan.site  # Keycloak server URL (must match token issuer host)
 
         realm: Go-Bhutan # Keycloak realm
@@ -161,7 +160,7 @@ app:
             resource-id: public-user-rest-api
             principle-attribute: preferred_username
       keycloak:
-        serverUrl: http://localhost:8084  # Keycloak server URL (dev-only)
+        serverUrl: http://localhost:8084 # Keycloak server URL (dev-only)
         #serverUrl: https://gobhutan.site  # Keycloak server URL (must match token issuer host)
 
         realm: Go-Bhutan # Keycloak realm
@@ -181,7 +180,7 @@ springdoc:
   swagger-ui:
     path: /docs
     display-request-duration: true
-    operations-sorter: method   # or "alpha"
+    operations-sorter: method # or "alpha"
     tags-sorter: alpha
   api-docs:
     path: /v3/api-docs
@@ -201,8 +200,34 @@ springdoc:
       packages-to-scan: com.goBhutan.adminPanel.theater.controller
     - group: gas-admin
       packages-to-scan: com.goBhutan.adminPanel.gasDelivery.controller
-    
+    - group: notifications
+      packages-to-scan: com.goBhutan.adminPanel.notification.controller
 
 file:
   upload:
     directory=uploads/hotels:
+
+# Local backend-only Firebase notification configuration.
+# The credential file is stored outside the repository with restricted ACLs.
+notification:
+  admin-role: ${NOTIFICATION_ADMIN_ROLE:notification_manage}
+  firebase:
+    enabled: true
+    project-id: ${NOTIFICATION_FIREBASE_PROJECT_ID:yaya-d0e08}
+    credentials-location: ${NOTIFICATION_FIREBASE_CREDENTIALS_LOCATION:D:/GoBhutanSecrets/firebase/yaya-d0e08-firebase-adminsdk-fbsvc-edc6296cf4.json}
+  retry:
+    max-attempts: ${NOTIFICATION_RETRY_MAX_ATTEMPTS:3}
+    initial-delay-seconds: ${NOTIFICATION_RETRY_INITIAL_DELAY_SECONDS:30}
+  scheduler:
+    fixed-delay-ms: ${NOTIFICATION_SCHEDULER_FIXED_DELAY_MS:15000}
+    lease-seconds: ${NOTIFICATION_SCHEDULER_LEASE_SECONDS:120}
+    batch-size: ${NOTIFICATION_SCHEDULER_BATCH_SIZE:100}
+  async:
+    core-pool-size: ${NOTIFICATION_ASYNC_CORE_POOL_SIZE:4}
+    max-pool-size: ${NOTIFICATION_ASYNC_MAX_POOL_SIZE:8}
+    queue-capacity: ${NOTIFICATION_ASYNC_QUEUE_CAPACITY:500}
+  retention:
+    notification-days: ${NOTIFICATION_RETENTION_NOTIFICATION_DAYS:90}
+    delivery-attempt-days: ${NOTIFICATION_RETENTION_DELIVERY_ATTEMPT_DAYS:30}
+    cron: ${NOTIFICATION_RETENTION_CRON:0 30 2 * * *}
+    zone: ${NOTIFICATION_RETENTION_ZONE:Asia/Thimphu}
