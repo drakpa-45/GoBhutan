@@ -8,6 +8,7 @@ import com.goBhutan.adminPanel.gasDelivery.service.GasDeliveryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
@@ -31,12 +32,14 @@ public class GasDeliveryController {
     }
 
     @GetMapping({ "/" })
+    @PreAuthorize("hasRole('GAS_ADMIN')")
     public ResponseEntity<ApiResponse<List<GasDeliveryResponse>>> getGasDeliveries() {
         return ResponseEntity.ok(ApiResponse.success(
                 gasDeliveryService.getAll()));
     }
 
     @PutMapping("/{id}/status")
+    @PreAuthorize("hasRole('GAS_ADMIN')")
     public ResponseEntity<ApiResponse<GasDeliveryResponse>> updateGasDeliveryStatus(
             @PathVariable Long id,
             @Valid @RequestBody GasDeliveryAdminStatusRequest request) {

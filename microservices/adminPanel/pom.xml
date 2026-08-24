@@ -147,6 +147,18 @@
 			<artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>
 
+		<!-- ===================================================== -->
+		<!-- Firebase                                              -->
+		<!-- Provides FirebaseApp, FirebaseMessaging, Firestore,   -->
+		<!-- GoogleCredentials, FirebaseOptions, etc.              -->
+		<!-- ===================================================== -->
+
+		<dependency>
+			<groupId>com.google.firebase</groupId>
+			<artifactId>firebase-admin</artifactId>
+			<version>9.10.0</version>
+		</dependency>
+
 </dependencies>
 
 	<build>
