@@ -17,7 +17,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: update #change to validate while deploying in production.
     properties:
       hibernate.dialect: org.hibernate.dialect.MySQLDialect   # Updated to MySQL8Dialect for modern MySQL
     show-sql: true
@@ -202,8 +202,11 @@ springdoc:
       packages-to-scan: com.goBhutan.adminPanel.theater.controller
     - group: gas-admin
       packages-to-scan: com.goBhutan.adminPanel.gasDelivery.controller
+    - group: taxi
+      packages-to-scan: com.goBhutan.adminPanel.taxi.controller
     - group: notifications
       packages-to-scan: com.goBhutan.adminPanel.notification.controller
+
     
 
 file:

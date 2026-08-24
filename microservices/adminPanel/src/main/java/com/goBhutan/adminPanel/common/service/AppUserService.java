@@ -3,6 +3,7 @@ package com.goBhutan.adminPanel.common.service;
 import com.goBhutan.adminPanel.common.entity.AppUser;
 import com.goBhutan.adminPanel.common.repository.AppUserRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
@@ -14,9 +15,11 @@ import java.util.Set;
 public class AppUserService {
 
     private final AppUserRepository repo;
+    private PasswordEncoder passwordEncoder;
 
-    public AppUserService(AppUserRepository repo) {
+    public AppUserService(AppUserRepository repo,PasswordEncoder passwordEncoder) {
         this.repo = repo;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
@@ -46,7 +49,7 @@ public class AppUserService {
         user.setEmail(email);
         user.setFirstName(firstName);
         user.setLastName(lastName);
-        user.setPassword(password);
+        user.setPassword(passwordEncoder.encode(password));
         user.setKeycloakId(keycloakId);
         user.setClients(new HashSet<>());
         user.setRoles(new HashSet<>());   // ✅ always empty — roles added LAST
@@ -69,7 +72,7 @@ public class AppUserService {
         user.setEmail(email);
         user.setFirstName(firstName);
         user.setLastName(lastName);
-        user.setPassword(password);
+        user.setPassword(passwordEncoder.encode(password));
         user.setKeycloakId(keycloakId);
         user.setClients(new HashSet<>());
         user.setRoles(new HashSet<>());   // ✅ always empty — roles added LAST
@@ -154,7 +157,7 @@ public class AppUserService {
     public void updatePassword(String username, String newPassword) {
         AppUser user = repo.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
-        user.setPassword(newPassword);
+        user.setPassword(passwordEncoder.encode(newPassword));
         repo.save(user);
     }
 

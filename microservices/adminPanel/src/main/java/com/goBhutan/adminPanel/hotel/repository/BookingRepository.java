@@ -1,6 +1,7 @@
 package com.goBhutan.adminPanel.hotel.repository;
 
 
+import com.goBhutan.adminPanel.hotel.dto.BookingWithHotelDTO;
 import com.goBhutan.adminPanel.hotel.entity.Booking;
 import com.goBhutan.adminPanel.hotel.entity.Room;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -49,5 +50,22 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     Booking getBookingStatus(@Param("id") Long id, @Param("bookingReference") String bookingReference);
 
     List<Booking> findByStatusAndExpiresAtBefore(Booking.BookingStatus status, LocalDateTime dateTime);
+
+
+    @Query("""
+    SELECT new com.goBhutan.adminPanel.hotel.dto.BookingWithHotelDTO(
+        h.name,
+        b.status,
+        COUNT(b.id)
+    )
+    FROM Booking b
+    JOIN b.hotel h
+    WHERE h.adminUserId = :adminUserId
+    GROUP BY h.name, b.status
+    ORDER BY h.name ASC
+""")
+    List<BookingWithHotelDTO> findAllBookingsWithHotelByAdminUserId(@Param("adminUserId") String adminUserId);
+
+    Optional<Booking> findByWalletPaymentRef(String walletPaymentRef);
 }
 

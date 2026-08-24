@@ -14,6 +14,7 @@ import java.util.Optional;
 public interface TheaterBookingRepository extends JpaRepository<TheaterBooking, Long> {
 
     Optional<TheaterBooking> findByBookingRef(String bookingRef);
+    Optional<TheaterBooking> findByWalletPaymentRef(String walletPaymentRef);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT b FROM TheaterBooking b WHERE b.bookingRef = :bookingRef")

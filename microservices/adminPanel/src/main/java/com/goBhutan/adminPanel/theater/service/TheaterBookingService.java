@@ -1,5 +1,6 @@
 package com.goBhutan.adminPanel.theater.service;
 
+import com.goBhutan.adminPanel.paymentInt.dto.ServicePaymentRequest;
 import com.goBhutan.adminPanel.theater.dto.booking.BookingRequestDTO;
 import com.goBhutan.adminPanel.theater.dto.booking.TicketResponseDTO;
 import com.goBhutan.adminPanel.theater.entity.*;
@@ -10,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -229,4 +231,68 @@ public class TheaterBookingService {
         booking.setBookingStatus(cancelStatus);
         bookingRepository.save(booking);
     }
+
+    public ServicePaymentRequest buildDirectGatewayPaymentRequest(
+            String bookingRef, String userId,
+            BigDecimal amount, String currency, String description) {
+
+        TheaterBooking booking = bookingRepository.findByBookingRef(bookingRef)
+                .orElseThrow(() -> new RuntimeException("Booking not found: " + bookingRef));
+
+        ServicePaymentRequest request = new ServicePaymentRequest();
+        request.setAmount(amount != null ? amount : booking.getTotalAmount());
+        request.setCurrency(currency != null ? currency : "BTN");
+        request.setServiceName("THEATER");
+        request.setReferenceType("THEATER_BOOKING");
+        request.setReferenceId(bookingRef);
+        request.setDescription(description != null ? description : "Theater ticket booking payment");
+        return request;
+    }
+
+    public void extendDirectGatewayPaymentLock(String bookingRef, String userId, LocalDateTime expiresAt) {
+        TheaterBooking booking = bookingRepository.findByBookingRef(bookingRef)
+                .orElseThrow(() -> new RuntimeException("Booking not found: " + bookingRef));
+        booking.setExpiresAt(expiresAt);
+        bookingRepository.save(booking);
+    }
+
+    public String ensureDirectGatewayPaymentCanContinue(String paymentRef, String userId) {
+        TheaterBooking booking = bookingRepository.findByWalletPaymentRef(paymentRef)
+                .orElseThrow(() -> new RuntimeException("Booking not found for paymentRef: " + paymentRef));
+
+        if (booking.isExpired()) {
+            throw new RuntimeException("Booking has expired: " + booking.getBookingRef());
+        }
+
+        TheaterBookingStatus pendingStatus = bookingStatusRepository
+                .findByStatusNameIgnoreCase("CREATED")
+                .orElseThrow(() -> new IllegalStateException("BookingStatus CREATED not configured"));
+
+        if (!booking.getBookingStatus().getId().equals(pendingStatus.getId())) {
+            throw new RuntimeException("Booking is not in CREATED state: " + booking.getBookingStatus().getStatusName());
+        }
+
+        return booking.getBookingRef();
+    }
+
+    public String ensureDirectGatewayPaymentCanDebit(String paymentRef, String userId) {
+        return ensureDirectGatewayPaymentCanContinue(paymentRef, userId);
+    }
+
+    @Transactional
+    public List<Ticket> confirmDirectGatewayPaymentBooking(String paymentRef, String userId) {
+        TheaterBooking booking = bookingRepository.findByWalletPaymentRef(paymentRef)
+                .orElseThrow(() -> new RuntimeException("Booking not found for paymentRef: " + paymentRef));
+
+        TheaterBookingStatus confirmedStatus = bookingStatusRepository
+                .findByStatusNameIgnoreCase("CONFIRMED")
+                .orElseThrow(() -> new IllegalStateException("BookingStatus CONFIRMED not configured"));
+
+        booking.setBookingStatus(confirmedStatus);
+        booking.setPaymentMethod("DIRECT_GATEWAY");
+        bookingRepository.save(booking);
+
+        return booking.getTickets();
+    }
+
 }

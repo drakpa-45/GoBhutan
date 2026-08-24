@@ -116,4 +116,24 @@ public class HotelController {
     public void deleteHotel(@PathVariable Long id) {
         hotelService.deleteHotel(id);
     }
+
+
+    @PatchMapping("/{id}/deactivate")
+// @PreAuthorize("hasRole('client_admin_hotel')")
+    public ResponseEntity<ApiResponse<Void>> deactivateHotel(@PathVariable Long id) {
+        try {
+            hotelService.deactivateHotel(id);
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(true)
+                    .message("Hotel deactivated successfully")
+                    .data(null)
+                    .build());
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.<Void>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .data(null)
+                    .build());
+        }
+    }
 }

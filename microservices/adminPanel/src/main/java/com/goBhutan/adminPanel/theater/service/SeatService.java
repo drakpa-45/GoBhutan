@@ -108,12 +108,16 @@ public class SeatService {
             }
         }
 
-        // ✅ Delete existing seats — makes this safe to call for both create AND edit
+        // Delete existing seats
         if (!hall.getSeats().isEmpty()) {
             log.info("Removing existing {} seats from hall {}", hall.getSeats().size(), hall.getId());
             seatRepository.deleteAllByHallId(hall.getId());
-            hall.getSeats().clear();
+            seatRepository.flush(); // force DELETE to DB before reload
         }
+
+        // Reload hall fresh — clears stale seat collection from Hibernate cache
+        hall = hallRepository.findById(request.getHallId())
+                .orElseThrow(() -> new IllegalArgumentException("Hall not found with ID: " + request.getHallId()));
 
         int totalSeats = 0;
 

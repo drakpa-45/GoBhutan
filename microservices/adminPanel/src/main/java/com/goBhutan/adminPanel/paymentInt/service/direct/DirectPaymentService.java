@@ -10,6 +10,7 @@ import com.goBhutan.adminPanel.paymentInt.dto.PaymentStatusResponse;
 import com.goBhutan.adminPanel.paymentInt.dto.ServicePaymentRequest;
 import com.goBhutan.adminPanel.paymentInt.enums.PaymentStatus;
 import com.goBhutan.adminPanel.paymentInt.service.PaymentIntegrationService;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +29,14 @@ public class DirectPaymentService {
 
     private final PaymentIntegrationService paymentService;
     private final List<DirectPaymentHandler> handlers;
+
+    private Map<String, DirectPaymentHandler> handlerMap;
+
+    @PostConstruct
+    private void initHandlerMap() {
+        handlerMap = handlers.stream()
+                .collect(Collectors.toMap(h -> normalize(h.module()), Function.identity()));
+    }
 
     public Map<String, Object> initiate(String module, DirectPaymentInitiateRequest request, String userId) {
         DirectPaymentHandler handler = handler(module);
@@ -148,12 +157,10 @@ public class DirectPaymentService {
         if (module == null || module.trim().isEmpty()) {
             throw new RuntimeException("module is required");
         }
-
-        Map<String, DirectPaymentHandler> byModule = handlers.stream()
-                .collect(Collectors.toMap(h -> normalize(h.module()), Function.identity()));
-        DirectPaymentHandler handler = byModule.get(normalize(module));
+        DirectPaymentHandler handler = handlerMap.get(normalize(module));
         if (handler == null) {
-            throw new RuntimeException("Unsupported direct payment module: " + module);
+            throw new RuntimeException("Unsupported direct payment module: " + module +
+                    ". Available modules: " + handlerMap.keySet());
         }
         return handler;
     }

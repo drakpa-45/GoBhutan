@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 
 import com.goBhutan.adminPanel.hotel.dto.BookingRequestDTO;
 import com.goBhutan.adminPanel.hotel.dto.BookingSummaryDTO;
+import com.goBhutan.adminPanel.hotel.dto.BookingWithHotelDTO;
 import com.goBhutan.adminPanel.hotel.entity.Guest;
 import com.goBhutan.adminPanel.hotel.entity.Hotel;
 import com.goBhutan.adminPanel.hotel.entity.Room;
@@ -49,6 +50,22 @@ public class BookingService {
         return bookingRepo.findBookingSummariesByHotelId(hotelId);
     }
 
+
+    public List<BookingWithHotelDTO> getBookingsByAdminUserId() {
+        // 🔹 Extract Keycloak userId from token
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String userId;
+
+        if (principal instanceof Jwt jwt) {
+            userId = jwt.getSubject();
+        } else if (principal instanceof String str) {
+            userId = str;
+        } else {
+            throw new RuntimeException("Unsupported principal type: " + principal.getClass());
+        }
+
+        return bookingRepo.findAllBookingsWithHotelByAdminUserId(userId);
+    }
 
     public Booking getBooking(Long id) {
         return bookingRepo.findById(id).orElseThrow(() -> new RuntimeException("Booking not found"));
@@ -284,5 +301,73 @@ public class BookingService {
         }
         List<String> statuses = Arrays.asList("CONFIRMED", "CHECKED_IN", "PENDING");
         return bookingRepo.countByUserIdAndStatuses(userId, statuses);
+    }
+
+
+    public ServicePaymentRequest buildDirectGatewayPaymentRequest(
+            String bookingRef, String userId,
+            BigDecimal amount, String currency, String description) {
+
+        Booking booking = bookingRepo.findByBookingReference(bookingRef)
+                .orElseThrow(() -> new RuntimeException("Booking not found: " + bookingRef));
+
+        if (!booking.getGuests().get(0).getEmail().equals(userId)) {
+            // userId is Keycloak UUID — validate ownership via a userId field if you have one
+            // skip or adjust based on your entity structure
+        }
+
+        ServicePaymentRequest request = new ServicePaymentRequest();
+        request.setAmount(amount != null ? amount : booking.getTotalAmount());
+        request.setCurrency(currency != null ? currency : "BTN");
+        request.setServiceName("HOTEL");
+        request.setReferenceType("HOTEL_BOOKING");
+        request.setReferenceId(bookingRef);
+        request.setDescription(description != null ? description : "Hotel room booking payment");
+        return request;
+    }
+
+    public void extendDirectGatewayPaymentLock(String bookingRef, String userId, LocalDateTime expiresAt) {
+        Booking booking = bookingRepo.findByBookingReference(bookingRef)
+                .orElseThrow(() -> new RuntimeException("Booking not found: " + bookingRef));
+        booking.setExpiresAt(expiresAt);
+        bookingRepo.save(booking);
+    }
+
+    public String ensureDirectGatewayPaymentCanContinue(String paymentRef, String userId) {
+        // paymentRef here is the gateway paymentRef, look up booking by walletPaymentRef
+        Booking booking = bookingRepo.findByWalletPaymentRef(paymentRef)
+                .orElseThrow(() -> new RuntimeException("Booking not found for paymentRef: " + paymentRef));
+
+        if (booking.isExpired()) {
+            throw new RuntimeException("Booking has expired: " + booking.getBookingReference());
+        }
+        if (booking.getStatus() != Booking.BookingStatus.PENDING) {
+            throw new RuntimeException("Booking is not in PENDING state: " + booking.getStatus());
+        }
+        return booking.getBookingReference();
+    }
+
+    public String ensureDirectGatewayPaymentCanDebit(String paymentRef, String userId) {
+        // same guard as canContinue — debit is the final OTP step
+        return ensureDirectGatewayPaymentCanContinue(paymentRef, userId);
+    }
+
+    @Transactional
+    public Booking confirmDirectGatewayPaymentBooking(String paymentRef, String userId) {
+        Booking booking = bookingRepo.findByWalletPaymentRef(paymentRef)
+                .orElseThrow(() -> new RuntimeException("Booking not found for paymentRef: " + paymentRef));
+
+        booking.setStatus(Booking.BookingStatus.CONFIRMED);
+        booking.setPaymentMethod("DIRECT_GATEWAY");
+
+        Room room = booking.getRoom();
+        if (room == null) {
+            throw new RuntimeException("Booking has no associated room");
+        }
+        room.setStatus(Room.RoomStatus.OCCUPIED);
+        roomRepo.save(room);
+        bookingRepo.save(booking);
+
+        return booking;
     }
 }
