@@ -14,3 +14,7 @@ README.md
 /*/*/.project
 /docker_image/*/*.*.war
 .idea/
+/uploads/
+/backup/
+**/out/artifacts/
+

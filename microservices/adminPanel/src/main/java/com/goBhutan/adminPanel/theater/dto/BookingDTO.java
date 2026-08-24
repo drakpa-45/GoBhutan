@@ -1,11 +1,12 @@
 package com.goBhutan.adminPanel.theater.dto;
 
+import com.goBhutan.adminPanel.theater.dto.seat.SeatDTO;
+
 public class BookingDTO {
-    private String id;
+    private Long id;
     private String bookingReference;
     private String userId;
     private String username;
-    private ScreeningDTO screening;
     private SeatDTO seat;
     private java.math.BigDecimal pricePaid;
     private String status;
@@ -19,8 +20,8 @@ public class BookingDTO {
     public BookingDTO() {}
 
     // Getters and Setters
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
     public String getBookingReference() { return bookingReference; }
     public void setBookingReference(String bookingReference) { this.bookingReference = bookingReference; }
@@ -30,9 +31,6 @@ public class BookingDTO {
 
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
-
-    public ScreeningDTO getScreening() { return screening; }
-    public void setScreening(ScreeningDTO screening) { this.screening = screening; }
 
     public SeatDTO getSeat() { return seat; }
     public void setSeat(SeatDTO seat) { this.seat = seat; }

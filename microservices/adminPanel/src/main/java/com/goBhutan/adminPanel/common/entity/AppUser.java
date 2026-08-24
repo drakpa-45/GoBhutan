@@ -27,6 +27,16 @@ public class AppUser {
 	@Column
 	private String email;
 
+	@Column(name = "first_name")
+	private String firstName;
+
+	@Column(name = "last_name")
+	private String lastName;
+
+
+	@Column
+	private String password; // plain text for now; consider hashing
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt = Instant.now();
 
@@ -36,6 +46,31 @@ public class AppUser {
 	@Column(name = "client")
 	private Set<String> clients = new HashSet<>();
 
+	@ElementCollection(fetch = FetchType.EAGER)
+	@CollectionTable(name = "gb_user_roles", joinColumns = @JoinColumn(name = "user_id"))
+	@Column(name = "role")
+	private Set<String> roles = new HashSet<>();
+
+	@Column(name = "phone_number")
+	private Integer phoneNumber;
+
+	// getter & setter
+	public Set<String> getRoles() { return roles; }
+	public void setRoles(Set<String> roles) { this.roles = roles; }
+
+	@Column(name = "entity_id")
+	private String entityId;  // e.g. hotelId, busCompanyId, theaterId
+
+	@Column(name = "entity_type")
+	private String entityType;  // e.g. "hotel", "bus", "theater"
+
+	// getters & setters
+	public String getEntityId() { return entityId; }
+	public void setEntityId(String entityId) { this.entityId = entityId; }
+	public String getEntityType() { return entityType; }
+	public void setEntityType(String entityType) { this.entityType = entityType; }
+
+	// Getters and Setters
 	public String getId() { return id; }
 	public void setId(String id) { this.id = id; }
 
@@ -48,6 +83,15 @@ public class AppUser {
 	public String getEmail() { return email; }
 	public void setEmail(String email) { this.email = email; }
 
+	public String getFirstName() { return firstName; }
+	public void setFirstName(String firstName) { this.firstName = firstName; }
+
+	public String getLastName() { return lastName; }
+	public void setLastName(String lastName) { this.lastName = lastName; }
+
+	public String getPassword() { return password; }
+	public void setPassword(String password) { this.password = password; }
+
 	public Instant getCreatedAt() { return createdAt; }
 	public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
@@ -58,5 +102,13 @@ public class AppUser {
 	@PrePersist
 	public void ensureId() {
 		if (this.id == null) this.id = UUID.randomUUID().toString();
+	}
+
+	public Integer getPhoneNumber() {
+		return phoneNumber;
+	}
+
+	public void setPhoneNumber(Integer phoneNumber) {
+		this.phoneNumber = phoneNumber;
 	}
 }

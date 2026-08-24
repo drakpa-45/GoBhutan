@@ -1,19 +1,31 @@
 package com.goBhutan.adminPanel.busAdmin.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.goBhutan.adminPanel.busAdmin.enums.RecurrenceType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Min;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Set;
 
 @Entity
+@Table(name = "tbl_bs_buses")
 @Data
-@Table(name ="tbl_bs_buses")
+@NoArgsConstructor
+@AllArgsConstructor
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Bus {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -21,6 +33,10 @@ public class Bus {
     @NotBlank(message = "Bus number is required")
     @Column(name = "bus_number", nullable = false, unique = true)
     private String busNumber;
+
+    @NotBlank(message = "Bus name is required")
+    @Column(name = "bus_name", nullable = false)
+    private String busName;
 
     @NotBlank(message = "Bus type is required")
     @Column(name = "bus_type", nullable = false)
@@ -37,101 +53,50 @@ public class Bus {
     @Column(name = "amenities", columnDefinition = "TEXT")
     private String amenities;
 
-    @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JsonIgnore
-    private List<Route> routes = new ArrayList<>();
+    @Column(name = "admin_user_id")
+    private String adminUserId;   // Keycloak user ID
 
-    @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @Column(name = "layout_type")
+    private String layoutType; // e.g., 19 ="1+2", 32="2+2", 40="2+3"
+
+    @Column(name = "is_active")
+    private Boolean isActive = true;
+
+    // ===================== UNIFIED BUS ROUTES =====================
+    @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<BusRoute> busRoutes = new ArrayList<>();
+
+    // ===================== SCHEDULES =====================
+    @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Schedule> schedules = new ArrayList<>();
 
-    @Column(name = "admin_user_id")
-    private String adminUserId; // Keycloak user ID
+    // ===================== SEAT CONFIG =====================
+    @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<BusSeatConfig> seatConfigs = new ArrayList<>();
 
-    public Bus() {
-    }
+    // ===================== RECURRENCE SETTINGS =====================
+    @Enumerated(EnumType.STRING)
+    @Column(name = "recurrence_type", nullable = false)
+    private RecurrenceType recurrenceType = RecurrenceType.DAILY;
 
-    public Bus(Long id, String busNumber, String busType, @NotNull(message = "Total seats is required") Integer totalSeats, String description, String amenities, List<Route> routes, List<Schedule> schedules, String adminUserId) {
-        this.id = id;
-        this.busNumber = busNumber;
-        this.busType = busType;
-        this.totalSeats = totalSeats;
-        this.description = description;
-        this.amenities = amenities;
-        this.routes = routes;
-        this.schedules = schedules;
-        this.adminUserId = adminUserId;
-    }
+    @Column(name = "schedule_anchor_date")
+    private LocalDate scheduleAnchorDate;
 
-    public String getAdminUserId() {
-        return adminUserId;
-    }
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "tbl_bs_operating_days", joinColumns = @JoinColumn(name = "bus_id"))
+    @Column(name = "day_of_week")
+    @Enumerated(EnumType.STRING)
+    private Set<DayOfWeek> operatingDays = new HashSet<>();
 
-    public void setAdminUserId(String adminUserId) {
-        this.adminUserId = adminUserId;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getBusNumber() {
-        return busNumber;
-    }
-
-    public void setBusNumber(String busNumber) {
-        this.busNumber = busNumber;
-    }
-
-    public String getBusType() {
-        return busType;
-    }
-
-    public void setBusType(String busType) {
-        this.busType = busType;
-    }
-
-    public Integer getTotalSeats() {
-        return totalSeats;
-    }
-
-    public void setTotalSeats(Integer totalSeats) {
-        this.totalSeats = totalSeats;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getAmenities() {
-        return amenities;
-    }
-
-    public void setAmenities(String amenities) {
-        this.amenities = amenities;
-    }
-
-    public List<Route> getRoutes() {
-        return routes;
-    }
-
-    public void setRoutes(List<Route> routes) {
-        this.routes = routes;
-    }
-
-    public List<Schedule> getSchedules() {
-        return schedules;
-    }
-
-    public void setSchedules(List<Schedule> schedules) {
-        this.schedules = schedules;
+    @PrePersist
+    @PreUpdate
+    @PostLoad
+    public void defaultActiveStatus() {
+        if (isActive == null) {
+            isActive = true;
+        }
     }
 }

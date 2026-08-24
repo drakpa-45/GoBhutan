@@ -1,0 +1,208 @@
+# Server Configuration
+server:
+  port: 8085
+  servlet:
+    context-path: /boot
+
+spring:
+  datasource: # Database Configuration
+    #url: jdbc:mysql://localhost:3306/goBhutan?useSSL=false&allowPublicKeyRetrieval=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    #username: root
+    #password: root
+    #driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://68.178.160.243:3306/gobhutan?useSSL=false&allowPublicKeyRetrieval=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: gobhutan
+    password: tmLgEP!l$7R6gMG@
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate.dialect: org.hibernate.dialect.MySQLDialect   # Updated to MySQL8Dialect for modern MySQL
+    show-sql: true
+  task:
+    scheduling:
+      pool:
+        size: 4
+      thread-name-prefix: go-bhutan-scheduler-
+  #Spring Security OAuth2 Resource Server (JWT)
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8084/realms/Go-Bhutan  # ? Keycloak realm issuer
+          #issuer-uri: https://gobhutan.site/realms/Go-Bhutan  # ? Keycloak realm issuer
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: pemadrakpa1996@gmail.com
+    password: lngw gnjk pejk gpho   # Gmail App Password, not account password
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+# Multiple client configs
+app:
+  payment:
+    bfs:
+      provider: BFS_SECURE
+      beneficiary-id: BE10000272
+      beneficiary-bank-code: "01"
+      api-url: https://uatbfssecure.rma.org.bt/BFSSecure/nvpapi
+      version: "1.0"
+      private-key-path: "classpath:yaya.key"
+      bfs-public-cert-path: "C:/Users/MrDeepakKumarGhalley/Desktop/YAYA PMT/bfs-keys/_.rma.org.bt.crt"
+      verify-response-signature: false
+      active: true
+  clients:
+    hotel:
+      admin-role: HOTEL_ADMIN
+      counter-role: HOTEL_COUNTER
+      jwt: # JWT Role Converter
+        auth:
+          converter:
+            resource-id: hotel-admin-rest-api    # ? must match Keycloak client-id that has roles
+            principle-attribute: preferred_username   # JWT claim to use as principal username
+      keycloak: # Keycloak Admin Client (for backend management)
+
+        serverUrl: http://localhost:8084  # Keycloak server URL (dev-only)
+        #serverUrl: https://gobhutan.site  # Keycloak server URL (must match token issuer host)
+
+        realm: Go-Bhutan # Keycloak realm
+        admin:
+          clientId: hotel-admin-client
+          clientSecret: QunAYZb7yPSV3hUi77cEvzQobDbHRbyO
+          #clientSecret: jdLpwvzOUWeQTkWffWSUmQnFnTsyNTSa
+    theater:
+      admin-role: THEATER_ADMIN
+      counter-role: THEATER_COUNTER
+      jwt: # JWT Role Converter
+        auth:
+          converter:
+            resource-id: theater-admin-rest-api    # ? must match Keycloak client-id that has roles
+            principle-attribute: preferred_username   # JWT claim to use as principal username
+      keycloak: # Keycloak Admin Client (for backend management)
+        serverUrl: http://localhost:8084  # Keycloak server URL (dev-only)
+        #serverUrl: https://gobhutan.site  # Keycloak server URL (must match token issuer host)
+
+        realm: Go-Bhutan # Keycloak realm
+        admin:
+          clientId: theater-admin-client
+          clientSecret: d7zknakWJgDEOIb5gvQNQ64cS97G14cT
+          #clientSecret: PH6xReyj2Ip329p1RwRmgbcebi4kgjN0
+    bus:
+      admin-role: BUS_ADMIN
+      counter-role: BUS_COUNTER
+      release-expired-lock: true
+      seat-lock-minutes: 3
+      booking-schedule:
+        enabled: true
+        cron: "0 0 23 * * *"
+        zone: Asia/Thimphu
+      jwt:
+        auth:
+          converter:
+            resource-id: bus-admin-rest-api
+            principle-attribute: preferred_username
+      keycloak:
+        serverUrl: http://localhost:8084  # Keycloak server URL (dev-only)
+        #serverUrl: https://gobhutan.site  # Keycloak server URL (must match token issuer host)
+
+        realm: Go-Bhutan # Keycloak realm
+        admin:
+          clientId: bus-admin-client
+          clientSecret: YGVuF6q8Ce0QsDQWTSGe8J8I5489P1tE
+          #clientSecret: nVScjDVTJbAMNcuOJuqVpsOYbUl53WF4
+    public:
+      admin-role: PUBLIC_USER
+      release-expired-lock: false
+      jwt:
+        auth:
+          converter:
+            resource-id: public-user-rest-api
+            principle-attribute: preferred_username
+      keycloak:
+        serverUrl: http://localhost:8084  # Keycloak server URL (dev-only)
+        #serverUrl: https://gobhutan.site  # Keycloak server URL (must match token issuer host)
+
+        realm: Go-Bhutan # Keycloak realm
+        admin:
+          clientId: public-user-client
+          clientSecret: Rteig3b0B8yAofYnjCg56FRjA7C76L1y
+          #clientSecret: BPnw0GWgNPGmyldTNnwnc4w0XrdSzztG
+    taxi:
+      admin-role: TAXI_ADMIN
+      counter-role: TAXI_COUNTER
+      release-expired-lock: false
+      jwt:
+        auth:
+          converter:
+            resource-id: public-user-rest-api
+            principle-attribute: preferred_username
+      keycloak:
+        serverUrl: http://localhost:8084  # Keycloak server URL (dev-only)
+        #serverUrl: https://gobhutan.site  # Keycloak server URL (must match token issuer host)
+
+        realm: Go-Bhutan # Keycloak realm
+        admin:
+          clientId: taxi-admin-client
+          clientSecret: UpBPEhL6d3k0ZF2qIQ6mQCsf8kpg9mkh
+          #clientSecret: BUWVwdzkxn04n7nC9YegDgJtKyqaGGCF
+    gas:
+      admin-role: GAS_ADMIN
+      counter-role: GAS_COUNTER
+      release-expired-lock: false
+      jwt:
+        auth:
+          converter:
+            resource-id: public-user-rest-api
+            principle-attribute: preferred_username
+      keycloak:
+        serverUrl: http://localhost:8084  # Keycloak server URL (dev-only)
+        #serverUrl: https://gobhutan.site  # Keycloak server URL (must match token issuer host)
+
+        realm: Go-Bhutan # Keycloak realm
+        admin:
+          clientId: gas-admin-client
+          clientSecret: F64DeakYEGN3P9d1pMNBDtrDjVDPcig7
+          #clientSecret: RT2rQleVgv7eqGUODKsZRVsAGnwPNDPB
+
+# logging
+logging:
+  level:
+    root: INFO
+    com.goBhutan.adminPanel: DEBUG
+
+#Swagger
+springdoc:
+  swagger-ui:
+    path: /docs
+    display-request-duration: true
+    operations-sorter: method   # or "alpha"
+    tags-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  default-produces-media-type: application/json
+  default-consumes-media-type: application/json
+
+  group-configs:
+    - group: bus-admin
+      packages-to-scan: com.goBhutan.adminPanel.busAdmin.controller
+    - group: payment-int
+      packages-to-scan: com.goBhutan.adminPanel.paymentInt.controller
+    - group: hotel-admin
+      packages-to-scan: com.goBhutan.adminPanel.hotel.controller
+    - group: common-endpoints
+      packages-to-scan: com.goBhutan.adminPanel.common.controller
+    - group: theater-admin
+      packages-to-scan: com.goBhutan.adminPanel.theater.controller
+    - group: gas-admin
+      packages-to-scan: com.goBhutan.adminPanel.gasDelivery.controller
+    
+
+file:
+  upload:
+    directory=uploads/hotels:

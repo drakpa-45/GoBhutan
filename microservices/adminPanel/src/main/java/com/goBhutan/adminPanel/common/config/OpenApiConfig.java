@@ -34,8 +34,8 @@ public class OpenApiConfig {
                         .contact(new Contact().name("GoBhutan Devs").email("devs@gobhutan.bt"))
                         .license(new License().name("Proprietary")))
                 .servers(List.of(
-                        new Server().url("http://localhost:8085").description("Local")
-                       // new Server().url("https://api.gobhutan.bt").description("Prod")
+                       // new Server().url("http://localhost:8085").description("Local")
+                        new Server().url("https://gobhutan.site").description("Prod")
                 ))
                 // comment out these two lines if you don't use JWT
                 .schemaRequirement("bearerAuth", bearerScheme)

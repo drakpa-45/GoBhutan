@@ -3,7 +3,6 @@ package com.goBhutan.adminPanel.common.service;
 
 import com.goBhutan.adminPanel.common.config.ClientProperties;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -14,6 +13,8 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 @Service
 @RequiredArgsConstructor
@@ -21,10 +22,19 @@ public class AdminTokenService {
     private final ClientProperties clientProperties;
     private final RestTemplate rest = new RestTemplate();
 
-    private String token;
-    private Instant expiry;
+    private final Map<String, TokenEntry> tokenCache = new HashMap<>();
 
-    private synchronized void refreshIfNeeded(String clientKey) {
+    private static final class TokenEntry {
+        private final String token;
+        private final Instant expiry;
+
+        private TokenEntry(String token, Instant expiry) {
+            this.token = token;
+            this.expiry = expiry;
+        }
+    }
+
+    private synchronized TokenEntry refresh(String clientKey) {
         var clientConfig = clientProperties.getClient(clientKey).getKeycloak();
 
         String tokenUrl = String.format("%s/realms/%s/protocol/openid-connect/token",
@@ -44,18 +54,22 @@ public class AdminTokenService {
 
         if (resp.getStatusCode().is2xxSuccessful() && resp.getBody() != null) {
             Map<String, Object> map = resp.getBody();
-            token = (String) map.get("access_token");
+            String token = (String) map.get("access_token");
             Integer expiresIn = (Integer) map.get("expires_in");
-            expiry = Instant.now().plusSeconds(expiresIn);
+            Instant expiry = Instant.now().plusSeconds(expiresIn != null ? expiresIn : 60);
+            return new TokenEntry(token, expiry);
         } else {
             throw new RuntimeException("Unable to fetch admin token from Keycloak");
         }
     }
 
     public synchronized String getAdminToken(String clientKey) {
-        if (token == null || expiry == null || Instant.now().isAfter(expiry.minusSeconds(30))) {
-            refreshIfNeeded(clientKey);
+        TokenEntry current = tokenCache.get(clientKey);
+        if (current == null || current.expiry == null || Instant.now().isAfter(current.expiry.minusSeconds(30))) {
+            TokenEntry refreshed = refresh(clientKey);
+            tokenCache.put(clientKey, refreshed);
+            return refreshed.token;
         }
-        return token;
+        return current.token;
     }
 }

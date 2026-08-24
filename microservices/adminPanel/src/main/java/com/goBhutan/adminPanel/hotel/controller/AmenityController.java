@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 
 import java.util.List;
 @RestController
+@CrossOrigin(origins = "*", maxAge = 3600)
 @RequestMapping("/api/amenities")
 public class AmenityController {
 
@@ -18,13 +19,13 @@ public class AmenityController {
     private AmenityRepository repo;
 
     @GetMapping
-    @PreAuthorize("hasRole('client_admin')")
+   // @PreAuthorize("hasRole('client_admin')")
     public List<Amenity> getAll() {
         return repo.findAll();
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('client_admin')")
+   // @PreAuthorize("hasRole('client_admin')")
     public Amenity create(@RequestBody @Valid Amenity amenity) {
         return repo.save(amenity);
     }
